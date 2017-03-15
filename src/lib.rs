@@ -8,7 +8,7 @@ extern crate time;
 use fuse_mt::*;
 use std::path::{Path, PathBuf};
 use std::io::{Read, Seek};
-use std::sync::{Arc, Mutex};
+use std::sync::Mutex;
 use std::collections::HashSet;
 use std::ffi::OsStr;
 use time::Timespec;
@@ -21,13 +21,13 @@ pub enum SnapshotError {
 type SnapshotResult<T> = Result<T, SnapshotError>;
 
 pub struct ArchiveFs<R: Read + Seek> {
-    z: Arc<Mutex<zip::ZipArchive<R>>>,
+    z: Mutex<zip::ZipArchive<R>>,
 }
 
 impl<R: Read + Seek> ArchiveFs<R> {
     pub fn from_zip(input: R) -> SnapshotResult<ArchiveFs<R>> {
         match zip::ZipArchive::new(input) {
-            Ok(z) => Ok(ArchiveFs { z: Arc::new(Mutex::new(z)) }),
+            Ok(z) => Ok(ArchiveFs { z: Mutex::new(z) }),
             Err(_) => Err(SnapshotError::DummyError),
         }
     }
