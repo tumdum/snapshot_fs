@@ -17,6 +17,8 @@ use time::Timespec;
 #[derive(Debug)]
 pub enum SnapshotError {
     DummyError,
+    MalformedPath(String),
+    ZipError(zip::result::ZipError),
 }
 
 type SnapshotResult<T> = Result<T, SnapshotError>;
@@ -33,16 +35,13 @@ impl<R: Read + Seek> ArchiveFs<R> {
         }
     }
 
-    fn to_zip_path(&self, path: &Path) -> String {
-        let p = path.to_str();
-        if p.is_none() {
-            panic!("TODO: failed to convert path to str");
-        }
-        let mut p: &str = &p.unwrap().replace("/", "\\");
+    fn to_zip_path(&self, path: &Path) -> SnapshotResult<String> {
+        let p = path.to_str().ok_or(SnapshotError::MalformedPath(path.to_string_lossy().into()))?;
+        let mut p: &str = &p.replace("/", "\\");
         if p.starts_with("\\") {
             p = &p[1..];
         }
-        p.into()
+        Ok(p.into())
     }
 
     fn is_directory(&self, path: &Path) -> bool {
@@ -51,51 +50,55 @@ impl<R: Read + Seek> ArchiveFs<R> {
 
     fn get_size(&self, path: &Path) -> Option<u64> {
         let m = &mut *self.z.lock().unwrap();
-        let f = self.get_file(m, path).unwrap();
+        let f = match self.get_file(m, path) {
+            Ok(x) => x,
+            Err(_) => return None,
+        };
         if is_gz_file(path) {
             println!("{:?} is gz", path);
-            let mut gz_dec = flate2::read::GzDecoder::new(f).unwrap();
+            let mut gz_dec = match flate2::read::GzDecoder::new(f) {
+                Ok(x) => x,
+                Err(_) => return None,
+            };
             let mut v = vec![];
             println!("gz_dec");
             match gz_dec.read_to_end(&mut v) {
                 Ok(s) => return Some(s as u64),
                 Err(e) => {
                     debug!("get size failed for {:?}: {:?}", path, e);
-                    return None
+                    return None;
                 }
             }
         }
         Some(f.size())
     }
 
-    fn get_file<'a, X: Read + Seek>(&self, z: &'a mut zip::ZipArchive<X>, path: &Path) -> zip::result::ZipResult<zip::read::ZipFile<'a>> {
-        z.by_name(&self.to_zip_path(&path))
+    fn get_file<'a, X: Read + Seek>(&self,
+                                    z: &'a mut zip::ZipArchive<X>,
+                                    path: &Path)
+                                    -> SnapshotResult<zip::read::ZipFile<'a>> {
+        z.by_name(&self.to_zip_path(&path)?).map_err(|e| SnapshotError::ZipError(e))
     }
 }
 
 fn is_gz_file(path: &Path) -> bool {
-    path.extension().unwrap() == "gz"
+    path.extension().map_or(false, |e| e == "gz")
 }
 
 fn convert_name(name: &str, path: &Path) -> Option<DirectoryEntry> {
     let name_path = PathBuf::from("/").join(name.replace("\\", "/"));
-    let suffix = match name_path.strip_prefix(path) {
-        Ok(s) => s,
-        Err(_) => return None,
-    };
-    let final_name = suffix.components().next();
-    if final_name.is_none() {
-        return None;
-    }
-    let final_name = final_name.unwrap();
-    Some(DirectoryEntry {
-             name: final_name.as_os_str().into(),
-             kind: if suffix.components().count() > 1 {
-                 FileType::Directory
-             } else {
-                 FileType::RegularFile
-             },
-         })
+    name_path.strip_prefix(path).ok().and_then(|suffix| {
+        suffix.components().next().and_then(|name| {
+            Some(DirectoryEntry {
+                     name: name.as_os_str().into(),
+                     kind: if suffix.components().count() > 1 {
+                         FileType::Directory
+                     } else {
+                         FileType::RegularFile
+                     },
+                 })
+        })
+    })
 }
 
 impl<R: Read + Seek> FilesystemMT for ArchiveFs<R> {
@@ -110,7 +113,10 @@ impl<R: Read + Seek> FilesystemMT for ArchiveFs<R> {
         } else {
             let mut attr = HELLO_FILE_ATTR.clone();
             match self.get_size(path) {
-                Some(s) => {attr.size = s; return Ok((TTL, attr))},
+                Some(s) => {
+                    attr.size = s;
+                    return Ok((TTL, attr));
+                }
                 None => return Err(libc::ENOENT),
             }
         }
@@ -136,12 +142,7 @@ impl<R: Read + Seek> FilesystemMT for ArchiveFs<R> {
         let mut seen = HashSet::new();
         let mut z = self.z.lock().unwrap();
         let entries = (0..z.len())
-            .map(|i| {
-                     z.by_index(i)
-                         .unwrap()
-                         .name()
-                         .to_string()
-                 })
+            .filter_map(|i| z.by_index(i).ok().and_then(|f| Some(f.name().to_string())))
             .filter_map(|name| convert_name(&name, path))
             .filter(|ref e| if seen.contains(&e.name) {
                         return false;
@@ -173,19 +174,17 @@ impl<R: Read + Seek> FilesystemMT for ArchiveFs<R> {
         let f = self.get_file(l, _path).unwrap();
         if is_gz_file(_path) {
             let gz_dec = flate2::read::GzDecoder::new(f).unwrap();
-            return Ok(gz_dec
-                .bytes()
-               .skip(_offset as usize)
-               .take(_size as usize)
-               .collect::<std::io::Result<Vec<u8>>>()
-               .unwrap())
+            return Ok(gz_dec.bytes()
+                          .skip(_offset as usize)
+                          .take(_size as usize)
+                          .collect::<std::io::Result<Vec<u8>>>()
+                          .unwrap());
         } else {
-            return Ok(f
-                .bytes()
-               .skip(_offset as usize)
-               .take(_size as usize)
-               .collect::<std::io::Result<Vec<u8>>>()
-               .unwrap())
+            return Ok(f.bytes()
+                          .skip(_offset as usize)
+                          .take(_size as usize)
+                          .collect::<std::io::Result<Vec<u8>>>()
+                          .unwrap());
         };
     }
 }
@@ -261,12 +260,12 @@ mod tests {
         z.finish().unwrap().into_inner()
     }
 
-    fn get_attr<X:Read + Seek>(path: &str, arch: &ArchiveFs<X>) -> fuse_mt::FileAttr {
+    fn get_attr<X: Read + Seek>(path: &str, arch: &ArchiveFs<X>) -> fuse_mt::FileAttr {
         let path = Path::new(path);
         arch.getattr(default_request_info(), path, None).unwrap().1
     }
 
-    fn assert_attr_dir<X:Read + Seek>(path: &str, arch: &ArchiveFs<X>) {
+    fn assert_attr_dir<X: Read + Seek>(path: &str, arch: &ArchiveFs<X>) {
         let attr = get_attr(path, arch);
         match attr.kind {
             fuse_mt::FileType::Directory => return,
@@ -274,7 +273,7 @@ mod tests {
         }
     }
 
-    fn assert_attr_file<X:Read + Seek>(path: &str, arch: &ArchiveFs<X>) {
+    fn assert_attr_file<X: Read + Seek>(path: &str, arch: &ArchiveFs<X>) {
         let attr = get_attr(path, arch);
         match attr.kind {
             fuse_mt::FileType::RegularFile => return,
@@ -282,12 +281,12 @@ mod tests {
         }
     }
 
-    fn assert_attr_size<X : Read + Seek>(expected: u64, path: &str, arch: &ArchiveFs<X>) {
+    fn assert_attr_size<X: Read + Seek>(expected: u64, path: &str, arch: &ArchiveFs<X>) {
         let attr = get_attr(path, arch);
         assert_eq!(expected, attr.size);
     }
 
-    fn assert_file_content<X : Read + Seek>(expected: &str, path: &str, arch: &ArchiveFs<X>) {
+    fn assert_file_content<X: Read + Seek>(expected: &str, path: &str, arch: &ArchiveFs<X>) {
         let path = Path::new(path);
         let v = arch.read(default_request_info(), path, 0, 0, expected.len() as u32).unwrap();
         assert_eq!(expected.as_bytes(), v.as_slice());
@@ -427,7 +426,7 @@ mod tests {
         assert_attr_size(12, "/b/c/deep.txt", &archive);
         assert_file_content("deep_content", "/b/c/deep.txt", &archive);
     }
-    
+
     fn gzip(expected_content: &str) -> Vec<u8> {
         let mut gz = flate2::write::GzEncoder::new(vec![], flate2::Compression::Default);
         gz.write(expected_content.as_bytes()).unwrap();
