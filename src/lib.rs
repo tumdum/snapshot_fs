@@ -10,7 +10,7 @@ use fuse_mt::*;
 use std::path::{Path, PathBuf};
 use std::io::{Read, Seek};
 use std::sync::Mutex;
-use std::collections::HashSet;
+use std::collections::{HashSet,HashMap};
 use std::ffi::OsStr;
 use time::Timespec;
 
@@ -25,14 +25,24 @@ type SnapshotResult<T> = Result<T, SnapshotError>;
 
 pub struct ArchiveFs<R: Read + Seek> {
     z: Mutex<zip::ZipArchive<R>>,
+    existing_files : HashMap<String,String>,
+}
+
+fn strip_compression_suffix(s: &str) -> &str {
+    s.trim_right_matches(".gz")
 }
 
 impl<R: Read + Seek> ArchiveFs<R> {
     pub fn from_zip(input: R) -> SnapshotResult<ArchiveFs<R>> {
-        match zip::ZipArchive::new(input) {
-            Ok(z) => Ok(ArchiveFs { z: Mutex::new(z) }),
-            Err(_) => Err(SnapshotError::DummyError),
+        let mut z = zip::ZipArchive::new(input).map_err(|_| SnapshotError::DummyError)?;
+        let mut existing_files = HashMap::new();
+        for i in 0..z.len() {
+            let f = z.by_index(i).map_err(|_| SnapshotError::DummyError)?;
+            let key = strip_compression_suffix(f.name());
+            existing_files.insert(key.to_string(), f.name().to_string());
+            println!("{:?} => {:?}", key, f.name());
         }
+        Ok(ArchiveFs { z: Mutex::new(z), existing_files: existing_files })
     }
 
     fn to_zip_path(&self, path: &Path) -> SnapshotResult<String> {
@@ -41,11 +51,23 @@ impl<R: Read + Seek> ArchiveFs<R> {
         if p.starts_with("\\") {
             p = &p[1..];
         }
-        Ok(p.into())
+        let real = self.existing_files.get(p);
+        println!("{:?} => {:?}", p, real);
+        real.ok_or(SnapshotError::DummyError).map(|e| e.clone())
     }
 
     fn is_directory(&self, path: &Path) -> bool {
-        self.get_file(&mut *self.z.lock().unwrap(), path).is_err()
+        println!("is_directory called with {:?}", path);
+        if self.get_file(&mut *self.z.lock().unwrap(), path).is_ok() {
+            println!("{:?} is not directory", path);
+            return false;
+        }
+        if self.get_file(&mut self.z.lock().unwrap(), &path.with_extension("gz")).is_ok() {
+            println!("{:?} is not directory", path.with_extension("gz"));
+            return false;
+        }
+        println!("{:?} is directory", path);
+        true
     }
 
     fn get_size(&self, path: &Path) -> Option<u64> {
@@ -54,7 +76,7 @@ impl<R: Read + Seek> ArchiveFs<R> {
             Ok(x) => x,
             Err(_) => return None,
         };
-        if is_gz_file(path) {
+        if self.is_gz_file(path) {
             println!("{:?} is gz", path);
             let mut gz_dec = match flate2::read::GzDecoder::new(f) {
                 Ok(x) => x,
@@ -77,13 +99,19 @@ impl<R: Read + Seek> ArchiveFs<R> {
                                     z: &'a mut zip::ZipArchive<X>,
                                     path: &Path)
                                     -> SnapshotResult<zip::read::ZipFile<'a>> {
+        let p = self.to_zip_path(&path)?;
+        println!("p: {:?}", p);
         z.by_name(&self.to_zip_path(&path)?).map_err(|e| SnapshotError::ZipError(e))
+    }
+
+    fn is_gz_file(&self, path: &Path) -> bool {
+        match self.to_zip_path(&path) {
+            Ok(v) => return v.ends_with(".gz"),
+            _ => return false,
+        }
     }
 }
 
-fn is_gz_file(path: &Path) -> bool {
-    path.extension().map_or(false, |e| e == "gz")
-}
 
 fn convert_name(name: &str, path: &Path) -> Option<DirectoryEntry> {
     let name_path = PathBuf::from("/").join(name.replace("\\", "/"));
@@ -109,6 +137,7 @@ impl<R: Read + Seek> FilesystemMT for ArchiveFs<R> {
 
     fn getattr(&self, _req: RequestInfo, path: &Path, _fh: Option<u64>) -> ResultGetattr {
         if self.is_directory(&path) {
+            println!("is {:?} directory!", path);
             Ok((TTL, HELLO_DIR_ATTR))
         } else {
             let mut attr = HELLO_FILE_ATTR.clone();
@@ -143,6 +172,7 @@ impl<R: Read + Seek> FilesystemMT for ArchiveFs<R> {
         let mut z = self.z.lock().unwrap();
         let entries = (0..z.len())
             .filter_map(|i| z.by_index(i).ok().and_then(|f| Some(f.name().to_string())))
+            .map(|s| s.trim_right_matches(".gz").to_string() )
             .filter_map(|name| convert_name(&name, path))
             .filter(|ref e| if seen.contains(&e.name) {
                         return false;
@@ -171,8 +201,10 @@ impl<R: Read + Seek> FilesystemMT for ArchiveFs<R> {
                _offset,
                _size);
         let l = &mut *self.z.lock().unwrap();
+        println!("_path: {:?}", _path);
         let f = self.get_file(l, _path).unwrap();
-        if is_gz_file(_path) {
+        println!("getfile:");
+        if self.is_gz_file(_path) {
             let gz_dec = flate2::read::GzDecoder::new(f).unwrap();
             return Ok(gz_dec.bytes()
                           .skip(_offset as usize)
@@ -447,8 +479,8 @@ mod tests {
         let content = "foo bar baz";
         let buf = gzip_in_zip("a\\b\\c.gz", content);
         let archive = ArchiveFs::from_zip(Cursor::new(buf)).unwrap();
-        assert_attr_file("/a/b/c.gz", &archive);
-        assert_attr_size(content.len() as u64, "/a/b/c.gz", &archive);
-        assert_file_content(content, "/a/b/c.gz", &archive);
+        assert_attr_file("/a/b/c", &archive);
+        assert_attr_size(content.len() as u64, "/a/b/c", &archive);
+        assert_file_content(content, "/a/b/c", &archive);
     }
 }
