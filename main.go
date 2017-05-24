@@ -8,6 +8,7 @@ package main
 
 import (
 	"archive/zip"
+	"bytes"
 	"flag"
 	"io"
 	"log"
@@ -103,6 +104,25 @@ func (z *ZipFs) GetAttr(name string, context *fuse.Context) (*fuse.Attr, fuse.St
 	debugf("GetAttr: %s", name)
 	size, _ := z.fileSize(name)
 	return &fuse.Attr{Mode: z.mode(name), Size: size}, fuse.OK
+}
+
+func (z *ZipFs) Open(name string, flags uint32, context *fuse.Context) (file nodefs.File, code fuse.Status) {
+	f, ok := z.files[name]
+	if !ok {
+		return nil, fuse.ENOENT
+	}
+	r, err := f.Open()
+	if err != nil {
+		debugf("failed to open '%v': %v", name, err)
+		return nil, fuse.EIO // TODO: EIO?
+	}
+	defer r.Close()
+	var b bytes.Buffer
+	if _, err = io.Copy(&b, r); err != nil {
+		debugf("faile to read '%v': %v", name, err)
+		return nil, fuse.EIO
+	}
+	return nodefs.NewDataFile(b.Bytes()), fuse.OK
 }
 
 var verbose = flag.Bool("v", false, "verbose logging")

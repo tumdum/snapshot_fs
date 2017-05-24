@@ -175,3 +175,19 @@ func TestZipFsGetAttrMultiLevel(t *testing.T) {
 		}
 	}
 }
+
+func TestZipFsOpenMultiLevel(t *testing.T) {
+	fs := MustNewZipFs(makeZipFile(multiLevel))
+	for name, content := range multiLevel {
+		f, status := fs.Open(name, 0, &fuse.Context{})
+		verifyStatus(status, t)
+		b := make([]byte, len(content))
+		rresult, status := f.Read(b, 0)
+		verifyStatus(status, t)
+		readContent, status := rresult.Bytes(b)
+		verifyStatus(status, t)
+		if string(readContent) != content {
+			t.Fatalf("Expected conten of '%v' is '%v', got '%v'", name, content, string(readContent))
+		}
+	}
+}
