@@ -4,8 +4,9 @@ go: 1.8
 before_install:
     - go get -t -v ./...
 
+install:
+    - go get github.com/mattn/goveralls
+
 script:
     - go test -v
-
-after_success:
-      - bash <(curl -s https://codecov.io/bash)
+    - goveralls -service=travis-ci
