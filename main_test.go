@@ -140,7 +140,7 @@ func TestZipFsOpenDirOnMultiLevelFileSubdir(t *testing.T) {
 	}
 }
 
-func TestZipFsGetAttrMultiLevel(t *testing.T) {
+func TestZipFsOpenDirModeMultiLevel(t *testing.T) {
 	fs := MustNewZipFs(makeZipFile(multiLevel))
 	entries, _ := fs.OpenDir("", &fuse.Context{})
 	for _, entry := range entries {
