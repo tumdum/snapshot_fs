@@ -26,42 +26,6 @@ func debugf(format string, args ...interface{}) {
 	}
 }
 
-type HelloFs struct {
-	pathfs.FileSystem
-}
-
-func (me *HelloFs) GetAttr(name string, context *fuse.Context) (*fuse.Attr, fuse.Status) {
-	switch name {
-	case "file.txt":
-		return &fuse.Attr{
-			Mode: fuse.S_IFREG | 0644, Size: uint64(len(name)),
-		}, fuse.OK
-	case "":
-		return &fuse.Attr{
-			Mode: fuse.S_IFDIR | 0755,
-		}, fuse.OK
-	}
-	return nil, fuse.ENOENT
-}
-
-func (me *HelloFs) OpenDir(name string, context *fuse.Context) (c []fuse.DirEntry, code fuse.Status) {
-	if name == "" {
-		c = []fuse.DirEntry{{Name: "file.txt", Mode: fuse.S_IFREG}}
-		return c, fuse.OK
-	}
-	return nil, fuse.ENOENT
-}
-
-func (me *HelloFs) Open(name string, flags uint32, context *fuse.Context) (file nodefs.File, code fuse.Status) {
-	if name != "file.txt" {
-		return nil, fuse.ENOENT
-	}
-	if flags&fuse.O_ANYWRITE != 0 {
-		return nil, fuse.EPERM
-	}
-	return nodefs.NewDataFile([]byte("ala ma kota")), fuse.OK
-}
-
 type ZipFs struct {
 	pathfs.FileSystem
 	z *zip.Reader
@@ -154,12 +118,11 @@ func main() {
 		log.Fatalf("Could not read zip file: %v", err)
 	}
 
-	// nfs := pathfs.NewPathNodeFs(&HelloFs{FileSystem: pathfs.NewDefaultFileSystem()}, nil)
 	nfs := pathfs.NewPathNodeFs(fs, nil)
 	server, _, err := nodefs.MountRoot(flag.Arg(0), nfs.Root(), nil)
 	if err != nil {
 		log.Fatalf("Mount fail: %v\n", err)
 	}
-	// server.SetDebug(true)
+	server.SetDebug(*verbose)
 	server.Serve()
 }
