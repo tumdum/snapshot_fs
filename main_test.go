@@ -199,3 +199,11 @@ func TestZipFsOpenMultiLevel(t *testing.T) {
 		}
 	}
 }
+
+func TestZipFsOpenNotExisting(t *testing.T) {
+	fs := MustNewZipFs(makeZipFile(multiLevel))
+	_, status := fs.Open("aaaaaaaaaaaaaa", 0, &fuse.Context{})
+	if status.Ok() {
+		t.Fatalf("Status Ok for not existing file, should be nok")
+	}
+}
