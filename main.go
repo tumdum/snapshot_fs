@@ -21,6 +21,7 @@ func debugf(format string, args ...interface{}) {
 	}
 }
 
+// ZipFs is a fuse filesystem that mounts zip archives
 type ZipFs struct {
 	pathfs.FileSystem
 	z *zip.Reader
