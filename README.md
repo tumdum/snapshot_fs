@@ -5,9 +5,7 @@ Very much WIP.
 
 Right now it does not recourse. To mount zip archieve execute:
 ```
-$ built_binary empty/existing/directory path/to/file.zip
-```
-or via cargo:
-```
-$ cargo run --release -- empty/existing/directory path/to/file.zip
+$ go get github.com/tumdum/snapshot_fs
+$ go install github.com/tumdum/snapshot_fs
+$ snapshot_fs empty/existing/directory path/to/file.zip
 ```
