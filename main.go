@@ -31,7 +31,7 @@ type ZipFs struct {
 	z *zip.Reader
 	// caching this way is fast enough for now. If there will be need to make
 	// it faster, this could be chanegd to map from prefix to set of files.
-	files map[string]struct{}
+	files map[string]*zip.File
 }
 
 func NewZipFs(r io.ReaderAt, size int64) (*ZipFs, error) {
@@ -39,9 +39,9 @@ func NewZipFs(r io.ReaderAt, size int64) (*ZipFs, error) {
 	if err != nil {
 		return nil, err
 	}
-	files := map[string]struct{}{}
+	files := map[string]*zip.File{}
 	for _, f := range zipr.File {
-		files[f.Name] = struct{}{}
+		files[f.Name] = f
 	}
 	return &ZipFs{pathfs.NewDefaultFileSystem(), zipr, files}, nil
 }
@@ -49,6 +49,14 @@ func NewZipFs(r io.ReaderAt, size int64) (*ZipFs, error) {
 func (z *ZipFs) isFile(name string) bool {
 	_, ok := z.files[name]
 	return ok
+}
+
+func (z *ZipFs) fileSize(name string) (uint64, bool) {
+	f, ok := z.files[name]
+	if !ok {
+		return 0, false
+	}
+	return f.UncompressedSize64, true
 }
 
 func (z *ZipFs) OpenDir(name string, context *fuse.Context) ([]fuse.DirEntry, fuse.Status) {
@@ -93,7 +101,8 @@ func (z *ZipFs) mode(name string) uint32 {
 
 func (z *ZipFs) GetAttr(name string, context *fuse.Context) (*fuse.Attr, fuse.Status) {
 	debugf("GetAttr: %s", name)
-	return &fuse.Attr{Mode: z.mode(name)}, fuse.OK
+	size, _ := z.fileSize(name)
+	return &fuse.Attr{Mode: z.mode(name), Size: size}, fuse.OK
 }
 
 var verbose = flag.Bool("v", false, "verbose logging")

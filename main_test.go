@@ -161,3 +161,17 @@ func TestZipFsOpenDirModeMultiLevel(t *testing.T) {
 		}
 	}
 }
+
+func TestZipFsGetAttrMultiLevel(t *testing.T) {
+	fs := MustNewZipFs(makeZipFile(multiLevel))
+	for name, content := range multiLevel {
+		attr, status := fs.GetAttr(name, &fuse.Context{})
+		verifyStatus(status, t)
+		if attr.Mode&fuse.S_IFREG == 0 {
+			t.Fatalf("File '%v' is not a file", name)
+		}
+		if uint64(len(content)) != attr.Size {
+			t.Fatalf("File has size %d, but got %d", len(content), attr.Size)
+		}
+	}
+}
