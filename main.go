@@ -82,6 +82,10 @@ func (z *ZipFs) OpenDir(name string, context *fuse.Context) ([]fuse.DirEntry, fu
 		seen[first] = struct{}{}
 		files = append(files, fuse.DirEntry{Name: first, Mode: z.mode(first)})
 	}
+	if len(files) == 0 && len(z.files) > 0 {
+		// Zip files contain only files.
+		return nil, fuse.ENOENT
+	}
 	return files, 0
 }
 

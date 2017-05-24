@@ -162,6 +162,14 @@ func TestZipFsOpenDirModeMultiLevel(t *testing.T) {
 	}
 }
 
+func TestZipFsOpenDirNotExisting(t *testing.T) {
+	fs := MustNewZipFs(makeZipFile(multiLevel))
+	_, status := fs.OpenDir("aaaaaaaaaaaaaa", &fuse.Context{})
+	if status.Ok() {
+		t.Fatalf("Ok status returned for not existing directory")
+	}
+}
+
 func TestZipFsGetAttrMultiLevel(t *testing.T) {
 	fs := MustNewZipFs(makeZipFile(multiLevel))
 	for name, content := range multiLevel {
