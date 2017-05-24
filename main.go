@@ -126,6 +126,12 @@ func (z *ZipFs) Open(name string, flags uint32, context *fuse.Context) (file nod
 
 var verbose = flag.Bool("v", false, "verbose logging")
 
+func failOnErr(format string, err error) {
+	if err != nil {
+		log.Fatalf(format, err)
+	}
+}
+
 func main() {
 	flag.Parse()
 	if len(flag.Args()) < 1 {
@@ -133,24 +139,18 @@ func main() {
 	}
 
 	f, err := os.Open(flag.Arg(1))
-	if err != nil {
-		log.Fatalf("Could not open zip file: %v", err)
-	}
+	failOnErr("Could not opne zip file: %v", err)
+
 	stat, err := f.Stat()
-	if err != nil {
-		log.Fatalf("Could not stat zip file: %v", err)
-	}
+	failOnErr("Could not stat zip file: %v", err)
 
 	fs, err := NewZipFs(f, stat.Size())
-	if err != nil {
-		log.Fatalf("Could not read zip file: %v", err)
-	}
+	failOnErr("Could not read zip file: %v", err)
 
 	nfs := pathfs.NewPathNodeFs(fs, nil)
 	server, _, err := nodefs.MountRoot(flag.Arg(0), nfs.Root(), nil)
-	if err != nil {
-		log.Fatalf("Mount fail: %v\n", err)
-	}
+	failOnErr("Mount failed: %v", err)
+
 	server.SetDebug(*verbose)
 	server.Serve()
 }
