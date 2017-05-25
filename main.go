@@ -2,7 +2,6 @@ package main
 
 import (
 	"archive/zip"
-	"bytes"
 	"compress/gzip"
 	"flag"
 	"fmt"
@@ -139,37 +138,30 @@ func (z *ZipFs) Open(name string, flags uint32, context *fuse.Context) (file nod
 	return nodefs.NewDataFile(b), fuse.OK
 }
 
+func NewReader(r io.Reader) (io.Reader, error) {
+	return r, nil
+}
+
 func (z *ZipFs) read(name string, r io.Reader) ([]byte, error) {
-	var b bytes.Buffer
-	if _, err := io.Copy(&b, r); err != nil {
-		return nil, fmt.Errorf("failed to read '%v': %v", name, err)
-	}
-	var ret []byte
+	var reader io.Reader
 
 	if isGzip(name) {
-		r, err := gzip.NewReader(&b)
+		tmp, err := gzip.NewReader(r)
 		if err != nil {
 			return nil, fmt.Errorf("failed to decompress gzip file: %v", err)
 		}
-		buf, err := ioutil.ReadAll(r)
-		if err != nil {
-			return nil, fmt.Errorf("failed to decompress gzip file: %v", err)
-		}
-		ret = buf
+		reader = tmp
 	} else if isXz(name) {
-		r, err := xz.NewReader(&b)
+		tmp, err := xz.NewReader(r)
 		if err != nil {
 			return nil, fmt.Errorf("failed to decompress xz file: %v", err)
 		}
-		buf, err := ioutil.ReadAll(r)
-		if err != nil {
-			return nil, fmt.Errorf("failed to decompress xz file: %v", err)
-		}
-		ret = buf
+		reader = tmp
 	} else {
-		ret = b.Bytes()
+		reader = r
 	}
-	return ret, nil
+
+	return ioutil.ReadAll(reader)
 }
 
 func isGzip(path string) bool {
