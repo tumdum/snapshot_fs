@@ -3,8 +3,11 @@ package main
 import (
 	"archive/zip"
 	"bytes"
+	"compress/gzip"
 	"flag"
+	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"os"
 	"strings"
@@ -51,6 +54,18 @@ func (z *ZipFs) fileSize(name string) (uint64, bool) {
 	f, ok := z.files[name]
 	if !ok {
 		return 0, false
+	}
+	if strings.HasSuffix(name, ".gz") {
+		r, err := f.Open()
+		if err != nil {
+			return 0, false
+		}
+		l, err := z.read(name, r)
+		if err != nil {
+			return 0, false
+		}
+		return uint64(len(l)), true
+
 	}
 	return f.UncompressedSize64, true
 }
@@ -116,12 +131,35 @@ func (z *ZipFs) Open(name string, flags uint32, context *fuse.Context) (file nod
 		return nil, fuse.EIO // TODO: EIO?
 	}
 	defer r.Close()
-	var b bytes.Buffer
-	if _, err = io.Copy(&b, r); err != nil {
-		debugf("faile to read '%v': %v", name, err)
+	b, err := z.read(name, r)
+	if err != nil {
+		debugf("failed to open: %v", err)
 		return nil, fuse.EIO
 	}
-	return nodefs.NewDataFile(b.Bytes()), fuse.OK
+	return nodefs.NewDataFile(b), fuse.OK
+}
+
+func (z *ZipFs) read(name string, r io.Reader) ([]byte, error) {
+	var b bytes.Buffer
+	if _, err := io.Copy(&b, r); err != nil {
+		return nil, fmt.Errorf("failed to read '%v': %v", name, err)
+	}
+	var ret []byte
+
+	if strings.HasSuffix(name, ".gz") {
+		r, err := gzip.NewReader(&b)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decompress gzip file: %v", err)
+		}
+		buf, err := ioutil.ReadAll(r)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decompress gzip file: %v", err)
+		}
+		ret = buf
+	} else {
+		ret = b.Bytes()
+	}
+	return ret, nil
 }
 
 var verbose = flag.Bool("v", false, "verbose logging")

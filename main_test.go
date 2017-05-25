@@ -3,6 +3,7 @@ package main
 import (
 	"archive/zip"
 	"bytes"
+	"compress/gzip"
 	"io"
 	"strings"
 	"testing"
@@ -16,8 +17,19 @@ func addFileToZip(w *zip.Writer, path, content string) {
 	if err != nil {
 		panic(err)
 	}
-	_, err = io.Copy(f, strings.NewReader(content))
-	if err != nil {
+	var r io.Reader
+	if strings.HasSuffix(path, ".gz") {
+		var b bytes.Buffer
+		w := gzip.NewWriter(&b)
+		if _, err := w.Write([]byte(content)); err != nil {
+			panic(err)
+		}
+		w.Close()
+		r = &b
+	} else {
+		r = strings.NewReader(content)
+	}
+	if _, err = io.Copy(f, r); err != nil {
 		panic(err)
 	}
 }
@@ -54,6 +66,12 @@ var (
 		"g/h/i/j": "k",
 		"g/h/i/l": "m",
 		"g/h/n":   "o",
+	}
+	withGziped = map[string]string{
+		"a":         "b",
+		"c.gz":      "dddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+		"f/g/h.gz":  "iiiiii",
+		"f/g/j.txt": "kkkkk",
 	}
 )
 
@@ -184,18 +202,23 @@ func TestZipFsGetAttrMultiLevel(t *testing.T) {
 	}
 }
 
+func mustReadFuseFile(name string, l int, fs pathfs.FileSystem, t *testing.T) string {
+	f, status := fs.Open(name, 0, &fuse.Context{})
+	verifyStatus(status, t)
+	b := make([]byte, l)
+	readResult, status := f.Read(b, 0)
+	verifyStatus(status, t)
+	content, status := readResult.Bytes(b)
+	verifyStatus(status, t)
+	return string(content)
+}
+
 func TestZipFsOpenMultiLevel(t *testing.T) {
 	fs := MustNewZipFs(makeZipFile(multiLevel))
 	for name, content := range multiLevel {
-		f, status := fs.Open(name, 0, &fuse.Context{})
-		verifyStatus(status, t)
-		b := make([]byte, len(content))
-		rresult, status := f.Read(b, 0)
-		verifyStatus(status, t)
-		readContent, status := rresult.Bytes(b)
-		verifyStatus(status, t)
-		if string(readContent) != content {
-			t.Fatalf("Expected conten of '%v' is '%v', got '%v'", name, content, string(readContent))
+		readContent := mustReadFuseFile(name, len(content), fs, t)
+		if readContent != content {
+			t.Fatalf("Expected content of '%v' is '%v', got '%v'", name, content, readContent)
 		}
 	}
 }
@@ -205,5 +228,29 @@ func TestZipFsOpenNotExisting(t *testing.T) {
 	_, status := fs.Open("aaaaaaaaaaaaaa", 0, &fuse.Context{})
 	if status.Ok() {
 		t.Fatalf("Status Ok for not existing file, should be nok")
+	}
+}
+
+func TestZipFsOpenGzipedFile(t *testing.T) {
+	fs := MustNewZipFs(makeZipFile(withGziped))
+	for name, content := range withGziped {
+		readContent := mustReadFuseFile(name, len(content), fs, t)
+		if readContent != content {
+			t.Fatalf("Expected content of '%v' is '%v', got '%v'", name, content, readContent)
+		}
+	}
+}
+
+func TestZipFsGetAttrGzipedFile(t *testing.T) {
+	fs := MustNewZipFs(makeZipFile(withGziped))
+	for name, content := range withGziped {
+		attr, status := fs.GetAttr(name, &fuse.Context{})
+		verifyStatus(status, t)
+		if attr.Mode&fuse.S_IFREG == 0 {
+			t.Fatalf("File '%v' is not a file", name)
+		}
+		if uint64(len(content)) != attr.Size {
+			t.Fatalf("File '%v' has size %d, but got %d", name, len(content), attr.Size)
+		}
 	}
 }
