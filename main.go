@@ -4,7 +4,6 @@ import (
 	"archive/zip"
 	"compress/gzip"
 	"flag"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
@@ -24,6 +23,11 @@ func debugf(format string, args ...interface{}) {
 	}
 }
 
+type comp struct {
+	isSupported func(string) bool
+	wrap        func(io.Reader) (io.Reader, error)
+}
+
 // ZipFs is a fuse filesystem that mounts zip archives
 type ZipFs struct {
 	pathfs.FileSystem
@@ -31,6 +35,7 @@ type ZipFs struct {
 	// caching this way is fast enough for now. If there will be need to make
 	// it faster, this could be chanegd to map from prefix to set of files.
 	files map[string]*zip.File
+	comps []comp
 }
 
 func NewZipFs(r io.ReaderAt, size int64) (*ZipFs, error) {
@@ -42,7 +47,12 @@ func NewZipFs(r io.ReaderAt, size int64) (*ZipFs, error) {
 	for _, f := range zipr.File {
 		files[f.Name] = f
 	}
-	return &ZipFs{pathfs.NewDefaultFileSystem(), zipr, files}, nil
+	comps := []comp{
+		{isGzip, func(r io.Reader) (io.Reader, error) { return gzip.NewReader(r) }},
+		{isXz, func(r io.Reader) (io.Reader, error) { return xz.NewReader(r) }},
+		{isUncompressed, func(r io.Reader) (io.Reader, error) { return r, nil }},
+	}
+	return &ZipFs{pathfs.NewDefaultFileSystem(), zipr, files, comps}, nil
 }
 
 func (z *ZipFs) isFile(name string) bool {
@@ -97,7 +107,7 @@ func (z *ZipFs) OpenDir(name string, context *fuse.Context) ([]fuse.DirEntry, fu
 		files = append(files, fuse.DirEntry{Name: first, Mode: z.mode(first)})
 	}
 	if len(files) == 0 && len(z.files) > 0 {
-		// Zip files contain only files.
+		// Zip files contain only files?
 		return nil, fuse.ENOENT
 	}
 	return files, 0
@@ -145,20 +155,20 @@ func NewReader(r io.Reader) (io.Reader, error) {
 func (z *ZipFs) read(name string, r io.Reader) ([]byte, error) {
 	var reader io.Reader
 
-	if isGzip(name) {
-		tmp, err := gzip.NewReader(r)
-		if err != nil {
-			return nil, fmt.Errorf("failed to decompress gzip file: %v", err)
+	for _, c := range z.comps {
+		if c.isSupported(name) {
+			tmp, err := c.wrap(r)
+			if err != nil {
+				return nil, err
+			}
+			reader = tmp
+			break
 		}
-		reader = tmp
-	} else if isXz(name) {
-		tmp, err := xz.NewReader(r)
-		if err != nil {
-			return nil, fmt.Errorf("failed to decompress xz file: %v", err)
-		}
-		reader = tmp
-	} else {
-		reader = r
+	}
+	if reader == nil {
+		// This should really never happen, unless I screw up and remove
+		// last element from comps which supports *all* files.
+		panic("read did not find matching reader for '" + name)
 	}
 
 	return ioutil.ReadAll(reader)
@@ -172,6 +182,10 @@ func isXz(path string) bool {
 	return strings.HasSuffix(path, ".xz")
 }
 
+func isUncompressed(path string) bool {
+	return true
+}
+
 var verbose = flag.Bool("v", false, "verbose logging")
 
 func failOnErr(format string, err error) {
@@ -182,8 +196,8 @@ func failOnErr(format string, err error) {
 
 func main() {
 	flag.Parse()
-	if len(flag.Args()) < 1 {
-		log.Fatal("Usage:\n  hello MOUNTPOINT PATH_TO_ZIP")
+	if len(flag.Args()) < 2 {
+		log.Fatal("Usage:\n  snapshot_fs MOUNTPOINT PATH_TO_ZIP")
 	}
 
 	f, err := os.Open(flag.Arg(1))
@@ -197,7 +211,7 @@ func main() {
 
 	nfs := pathfs.NewPathNodeFs(fs, nil)
 	server, _, err := nodefs.MountRoot(flag.Arg(0), nfs.Root(), nil)
-	failOnErr("Mount failed: %v", err)
+	failOnErr("Could not mount: %v", err)
 
 	server.SetDebug(*verbose)
 	server.Serve()
