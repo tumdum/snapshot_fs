@@ -124,9 +124,11 @@ func (z *ZipFs) mode(name string) uint32 {
 }
 
 func (z *ZipFs) GetAttr(name string, context *fuse.Context) (*fuse.Attr, fuse.Status) {
-	debugf("GetAttr: %s", name)
+	// TODO: this returns status ok for not exstisting paths
 	size, _ := z.fileSize(name)
-	return &fuse.Attr{Mode: z.mode(name), Size: size}, fuse.OK
+	attr := &fuse.Attr{Mode: z.mode(name), Size: size}
+	debugf("GetAttr: %s -> file:%v dir:%v", name, attr.IsRegular(), attr.IsDir())
+	return attr, fuse.OK
 }
 
 func (z *ZipFs) Open(name string, flags uint32, context *fuse.Context) (file nodefs.File, code fuse.Status) {
