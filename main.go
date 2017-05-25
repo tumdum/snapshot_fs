@@ -16,6 +16,7 @@ import (
 	"github.com/hanwen/go-fuse/fuse"
 	"github.com/hanwen/go-fuse/fuse/nodefs"
 	"github.com/hanwen/go-fuse/fuse/pathfs"
+	"github.com/ulikunitz/xz"
 )
 
 func debugf(format string, args ...interface{}) {
@@ -55,7 +56,7 @@ func (z *ZipFs) fileSize(name string) (uint64, bool) {
 	if !ok {
 		return 0, false
 	}
-	if strings.HasSuffix(name, ".gz") {
+	if isGzip(name) || isXz(name) {
 		r, err := f.Open()
 		if err != nil {
 			return 0, false
@@ -65,7 +66,6 @@ func (z *ZipFs) fileSize(name string) (uint64, bool) {
 			return 0, false
 		}
 		return uint64(len(l)), true
-
 	}
 	return f.UncompressedSize64, true
 }
@@ -146,7 +146,7 @@ func (z *ZipFs) read(name string, r io.Reader) ([]byte, error) {
 	}
 	var ret []byte
 
-	if strings.HasSuffix(name, ".gz") {
+	if isGzip(name) {
 		r, err := gzip.NewReader(&b)
 		if err != nil {
 			return nil, fmt.Errorf("failed to decompress gzip file: %v", err)
@@ -156,10 +156,28 @@ func (z *ZipFs) read(name string, r io.Reader) ([]byte, error) {
 			return nil, fmt.Errorf("failed to decompress gzip file: %v", err)
 		}
 		ret = buf
+	} else if isXz(name) {
+		r, err := xz.NewReader(&b)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decompress xz file: %v", err)
+		}
+		buf, err := ioutil.ReadAll(r)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decompress xz file: %v", err)
+		}
+		ret = buf
 	} else {
 		ret = b.Bytes()
 	}
 	return ret, nil
+}
+
+func isGzip(path string) bool {
+	return strings.HasSuffix(path, ".gz")
+}
+
+func isXz(path string) bool {
+	return strings.HasSuffix(path, ".xz")
 }
 
 var verbose = flag.Bool("v", false, "verbose logging")
