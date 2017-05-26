@@ -146,7 +146,7 @@ func TestZipFsOpenDirOnFlatFile(t *testing.T) {
 	verifyStatus("", status, t)
 
 	if len(entries) != len(flatFile) {
-		t.Fatalf("Expected 3 entries, got %d: %v", len(entries), entries)
+		t.Fatalf("Expected %d entries, got %d: %v", len(flatFile), len(entries), entries)
 	}
 	for _, entry := range entries {
 		if _, ok := flatFile[entry.Name]; !ok {
@@ -179,7 +179,7 @@ func TestZipFsOpenDirOnMultiLevelFile(t *testing.T) {
 		"g": false,
 	}
 	if len(entries) != len(expected) {
-		t.Fatalf("Expected 4 entries, got %d: %v", len(entries), entries)
+		t.Fatalf("Expected %d entries, got %d: %v", len(expected), len(entries), entries)
 	}
 	for _, entry := range entries {
 		isFile, ok := expected[entry.Name]
@@ -204,7 +204,7 @@ func TestZipFsOpenDirOnMultiLevelFileSubdir(t *testing.T) {
 	}
 
 	if len(entries) != len(expected) {
-		t.Fatalf("Expected 2 entries, got %d: %v", len(entries), entries)
+		t.Fatalf("Expected %d entries, got %d: %v", len(expected), len(entries), entries)
 	}
 
 	for _, entry := range entries {
