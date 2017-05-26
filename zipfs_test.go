@@ -91,6 +91,7 @@ var (
 		"g/h/i/j": "k",
 		"g/h/i/l": "m",
 		"g/h/n":   "o",
+		"g/hp":    "r",
 	}
 	withGziped = map[string]string{
 		"a":         "b",

@@ -82,11 +82,14 @@ func (z *ZipFs) fileSize(name string) (uint64, bool) {
 }
 
 func (z *ZipFs) OpenDir(name string, context *fuse.Context) ([]fuse.DirEntry, fuse.Status) {
-	debugf("OpenDir: %s", name)
+	debugf("OpenDir: '%s'", name)
 	files := make([]fuse.DirEntry, 0)
 	seen := map[string]struct{}{}
 	for _, entry := range z.z.File {
 		if !strings.HasPrefix(entry.Name, name) {
+			continue
+		}
+		if len(name) > 0 && len(entry.Name) > len(name) && entry.Name[len(name)] != '/' {
 			continue
 		}
 		suffix := strings.TrimPrefix(entry.Name, name)
