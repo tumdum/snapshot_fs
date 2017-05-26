@@ -8,7 +8,6 @@ import (
 	"io/ioutil"
 	"path"
 	"strings"
-	"syscall"
 
 	"github.com/hanwen/go-fuse/fuse"
 	"github.com/hanwen/go-fuse/fuse/nodefs"
@@ -58,8 +57,8 @@ func NewZipFs(r io.ReaderAt, size int64) (pathfs.FileSystem, error) {
 	return pathfs.NewLockingFileSystem(zfs), nil
 }
 
-func (z *ZipFs) isFile(name string) bool {
-	_, ok := z.files[name]
+func (z *ZipFs) isDir(name string) bool {
+	_, ok := z.dirs[name]
 	return ok
 }
 
@@ -82,69 +81,48 @@ func (z *ZipFs) fileSize(name string) (uint64, bool) {
 	return f.UncompressedSize64, true
 }
 
+func isProperPrefix(s, prefix string) bool {
+	if !strings.HasPrefix(s, prefix) {
+		return false
+	}
+	return !(len(prefix) > 0 && len(s) > len(prefix) && s[len(prefix)] != '/')
+}
+
 func (z *ZipFs) OpenDir(name string, context *fuse.Context) ([]fuse.DirEntry, fuse.Status) {
 	debugf("OpenDir: '%s'", name)
+	if !z.isDir(name) {
+		return nil, fuse.ENOENT
+	}
 	files := make([]fuse.DirEntry, 0)
 	seen := map[string]struct{}{}
-	for _, entry := range z.z.File {
-		if !strings.HasPrefix(entry.Name, name) {
+	for _, e := range z.z.File {
+		if !isProperPrefix(e.Name, name) {
 			continue
 		}
-		if len(name) > 0 && len(entry.Name) > len(name) && entry.Name[len(name)] != '/' {
-			continue
-		}
-		suffix := strings.TrimPrefix(entry.Name, name)
-		// There are only files in zip file. So OpenDir called on
-		// file is an error.
-		if suffix == "" {
-			return nil, fuse.Status(syscall.ENOSYS)
-		}
-
-		components := strings.Split(suffix, "/")
-		if components[0] == "" {
-			components = components[1:]
-		}
+		components := strings.Split(removePrefixPath(e.Name, name), "/")
 		// TODO: should I check len here?
 		first := components[0]
-		if _, ok := seen[first]; ok || len(first) == 0 {
+		if _, ok := seen[first]; ok {
 			continue
 		}
-		mode := uint32(0755)
-		if len(components) != 1 {
-			mode |= fuse.S_IFDIR
-		} else {
-			mode |= fuse.S_IFREG
-		}
+		mode := mode(len(components) == 1)
 		seen[first] = struct{}{}
-		entry := fuse.DirEntry{Name: first, Mode: mode}
-		files = append(files, entry)
-	}
-	if len(files) == 0 && len(z.files) > 0 {
-		// Zip files contain only files?
-		return nil, fuse.ENOENT
+		files = append(files, fuse.DirEntry{Name: first, Mode: mode})
 	}
 	return files, 0
 }
 
 func (z *ZipFs) mode(name string) uint32 {
-	mode := uint32(0755)
-	if z.isFile(name) {
-		mode |= fuse.S_IFREG
-	} else {
-		mode |= fuse.S_IFDIR
-	}
-	return mode
+	_, isFile := z.files[name]
+	return mode(isFile)
 }
 
 func (z *ZipFs) GetAttr(name string, context *fuse.Context) (*fuse.Attr, fuse.Status) {
 	size, isFile := z.fileSize(name)
-	if !isFile {
-		_, isDir := z.dirs[name]
-		if !isDir {
-			return nil, fuse.ENOENT
-		}
+	if !isFile && !z.isDir(name) {
+		return nil, fuse.ENOENT
 	}
-	attr := &fuse.Attr{Mode: z.mode(name), Size: size}
+	attr := &fuse.Attr{Mode: mode(isFile), Size: size}
 	debugf("GetAttr: '%s' -> file:%v dir:%v (%v)", name, attr.IsRegular(), attr.IsDir(), attr)
 	return attr, fuse.OK
 }
@@ -169,23 +147,29 @@ func (z *ZipFs) Open(name string, flags uint32, context *fuse.Context) (file nod
 }
 
 func (z *ZipFs) read(name string, r io.Reader) ([]byte, error) {
-	var reader io.Reader
-
 	for _, c := range z.comps {
 		if c.isSupported(name) {
-			tmp, err := c.wrap(r)
+			r, err := c.wrap(r)
 			if err != nil {
 				return nil, err
 			}
-			reader = tmp
-			break
+			return ioutil.ReadAll(r)
 		}
 	}
-	if reader == nil {
-		// This should really never happen, unless I screw up and remove
-		// last element from comps which supports *all* files.
-		panic("read did not find matching reader for '" + name)
-	}
+	return ioutil.ReadAll(r)
+}
 
-	return ioutil.ReadAll(reader)
+func removePrefixPath(s, prefix string) string {
+	suffix := strings.TrimPrefix(s, prefix)
+	if suffix != "" && suffix[0] == '/' {
+		suffix = suffix[1:]
+	}
+	return suffix
+}
+
+func mode(isFile bool) uint32 {
+	if isFile {
+		return uint32(0755) | fuse.S_IFREG
+	}
+	return uint32(0755) | fuse.S_IFDIR
 }
