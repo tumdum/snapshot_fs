@@ -137,7 +137,6 @@ func (z *ZipFs) mode(name string) uint32 {
 }
 
 func (z *ZipFs) GetAttr(name string, context *fuse.Context) (*fuse.Attr, fuse.Status) {
-	// TODO: this returns status ok for not exstisting paths
 	size, isFile := z.fileSize(name)
 	if !isFile {
 		_, isDir := z.dirs[name]
