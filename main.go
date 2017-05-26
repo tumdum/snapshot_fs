@@ -11,7 +11,7 @@ import (
 )
 
 func debugf(format string, args ...interface{}) {
-	if *verbose {
+	if *verbose || *vverbose {
 		log.Printf(format, args...)
 	}
 }
@@ -32,7 +32,10 @@ func isUncompressed(path string) bool {
 	return true
 }
 
-var verbose = flag.Bool("v", false, "verbose logging")
+var (
+	verbose  = flag.Bool("v", false, "verbose logging")
+	vverbose = flag.Bool("vv", false, "very verbose logging")
+)
 
 func failOnErr(format string, err error) {
 	if err != nil {
@@ -59,6 +62,6 @@ func main() {
 	server, _, err := nodefs.MountRoot(flag.Arg(0), nfs.Root(), nil)
 	failOnErr("Could not mount: %v", err)
 
-	server.SetDebug(*verbose)
+	server.SetDebug(*vverbose)
 	server.Serve()
 }

@@ -171,18 +171,23 @@ func TestZipFsOpenDirOnMultiLevelFile(t *testing.T) {
 	entries, status := fs.OpenDir("", &fuse.Context{})
 	verifyStatus("", status, t)
 
-	expected := map[string]struct{}{
-		"a": struct{}{},
-		"b": struct{}{},
-		"e": struct{}{},
-		"g": struct{}{},
+	// name -> isFile
+	expected := map[string]bool{
+		"a": false,
+		"b": true,
+		"e": true,
+		"g": false,
 	}
 	if len(entries) != len(expected) {
 		t.Fatalf("Expected 4 entries, got %d: %v", len(entries), entries)
 	}
 	for _, entry := range entries {
-		if _, ok := expected[entry.Name]; !ok {
+		isFile, ok := expected[entry.Name]
+		if !ok {
 			t.Fatalf("Found unexpected name '%v'", entry.Name)
+		}
+		if (entry.Mode&fuse.S_IFREG != 0) != isFile {
+			t.Fatalf("File '%v' is not a file in listing", entry.Name)
 		}
 	}
 }
@@ -192,14 +197,23 @@ func TestZipFsOpenDirOnMultiLevelFileSubdir(t *testing.T) {
 	entries, status := fs.OpenDir("g/h", &fuse.Context{})
 	verifyStatus("g/h", status, t)
 
-	expected := map[string]struct{}{
-		"i": struct{}{},
-		"n": struct{}{},
+	// name -> isFile
+	expected := map[string]bool{
+		"i": false,
+		"n": true,
+	}
+
+	if len(entries) != len(expected) {
+		t.Fatalf("Expected 2 entries, got %d: %v", len(entries), entries)
 	}
 
 	for _, entry := range entries {
-		if _, ok := expected[entry.Name]; !ok {
+		isFile, ok := expected[entry.Name]
+		if !ok {
 			t.Fatalf("Found unexpected name '%v'", entry.Name)
+		}
+		if (entry.Mode&fuse.S_IFREG != 0) != isFile {
+			t.Fatalf("File '%v' is not a file in listing", entry.Name)
 		}
 	}
 }
@@ -217,7 +231,7 @@ func TestZipFsOpenDirModeMultiLevel(t *testing.T) {
 	}
 	entries, _ = fs.OpenDir("g/h", &fuse.Context{})
 	for _, entry := range entries {
-		_, isFile := multiLevel[entry.Name]
+		_, isFile := multiLevel["g/h/"+entry.Name]
 		if isFile && (entry.Mode&fuse.S_IFREG == 0) {
 			t.Fatalf("File '%v' is not a file", entry.Name)
 		} else if !isFile && (entry.Mode&fuse.S_IFDIR == 0) {

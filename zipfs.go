@@ -32,7 +32,7 @@ type ZipFs struct {
 	comps []comp
 }
 
-func NewZipFs(r io.ReaderAt, size int64) (*ZipFs, error) {
+func NewZipFs(r io.ReaderAt, size int64) (pathfs.FileSystem, error) {
 	zipr, err := zip.NewReader(r, size)
 	if err != nil {
 		return nil, err
@@ -54,7 +54,8 @@ func NewZipFs(r io.ReaderAt, size int64) (*ZipFs, error) {
 		{isBzip, func(r io.Reader) (io.Reader, error) { return bzip2.NewReader(r), nil }},
 		{isUncompressed, func(r io.Reader) (io.Reader, error) { return r, nil }},
 	}
-	return &ZipFs{pathfs.NewDefaultFileSystem(), zipr, files, dirs, comps}, nil
+	zfs := &ZipFs{pathfs.NewDefaultFileSystem(), zipr, files, dirs, comps}
+	return pathfs.NewLockingFileSystem(zfs), nil
 }
 
 func (z *ZipFs) isFile(name string) bool {
@@ -105,12 +106,18 @@ func (z *ZipFs) OpenDir(name string, context *fuse.Context) ([]fuse.DirEntry, fu
 		}
 		// TODO: should I check len here?
 		first := components[0]
-		if _, ok := seen[first]; ok {
+		if _, ok := seen[first]; ok || len(first) == 0 {
 			continue
 		}
+		mode := uint32(0755)
+		if len(components) != 1 {
+			mode |= fuse.S_IFDIR
+		} else {
+			mode |= fuse.S_IFREG
+		}
 		seen[first] = struct{}{}
-		debugf("name: %v", first)
-		files = append(files, fuse.DirEntry{Name: first, Mode: z.mode(first)})
+		entry := fuse.DirEntry{Name: first, Mode: mode}
+		files = append(files, entry)
 	}
 	if len(files) == 0 && len(z.files) > 0 {
 		// Zip files contain only files?
@@ -139,7 +146,7 @@ func (z *ZipFs) GetAttr(name string, context *fuse.Context) (*fuse.Attr, fuse.St
 		}
 	}
 	attr := &fuse.Attr{Mode: z.mode(name), Size: size}
-	debugf("GetAttr: %s -> file:%v dir:%v", name, attr.IsRegular(), attr.IsDir())
+	debugf("GetAttr: '%s' -> file:%v dir:%v (%v)", name, attr.IsRegular(), attr.IsDir(), attr)
 	return attr, fuse.OK
 }
 
