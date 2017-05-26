@@ -32,6 +32,7 @@ type ZipFs struct {
 	comps []comp
 }
 
+// NewZipFs returns new filesystem reading zip archive from r of size.
 func NewZipFs(r io.ReaderAt, size int64) (pathfs.FileSystem, error) {
 	zipr, err := zip.NewReader(r, size)
 	if err != nil {
@@ -58,22 +59,22 @@ func NewZipFs(r io.ReaderAt, size int64) (pathfs.FileSystem, error) {
 	return pathfs.NewLockingFileSystem(zfs), nil
 }
 
-func (z *ZipFs) isDir(name string) bool {
-	_, ok := z.dirs[name]
+func (z *ZipFs) isDir(path string) bool {
+	_, ok := z.dirs[path]
 	return ok
 }
 
-func (z *ZipFs) fileSize(name string) (uint64, bool) {
-	f, ok := z.files[name]
+func (z *ZipFs) fileSize(path string) (uint64, bool) {
+	f, ok := z.files[path]
 	if !ok {
 		return 0, false
 	}
-	if isGzip(name) || isXz(name) || isBzip(name) {
+	if isGzip(path) || isXz(path) || isBzip(path) {
 		r, err := f.Open()
 		if err != nil {
 			return 0, false
 		}
-		l, err := z.read(name, r)
+		l, err := z.read(path, r)
 		if err != nil {
 			return 0, false
 		}
@@ -89,18 +90,19 @@ func isProperPrefix(s, prefix string) bool {
 	return !(len(prefix) > 0 && len(s) > len(prefix) && s[len(prefix)] != '/')
 }
 
-func (z *ZipFs) OpenDir(name string, context *fuse.Context) ([]fuse.DirEntry, fuse.Status) {
-	debugf("OpenDir: '%s'", name)
-	if !z.isDir(name) {
+// OpenDir returns list of files and directories directly under path.
+func (z *ZipFs) OpenDir(path string, context *fuse.Context) ([]fuse.DirEntry, fuse.Status) {
+	debugf("OpenDir: '%s'", path)
+	if !z.isDir(path) {
 		return nil, fuse.ENOENT
 	}
 	files := make([]fuse.DirEntry, 0)
 	seen := map[string]struct{}{}
 	for _, e := range z.z.File {
-		if !isProperPrefix(e.Name, name) {
+		if !isProperPrefix(e.Name, path) {
 			continue
 		}
-		components := strings.Split(removePrefixPath(e.Name, name), "/")
+		components := strings.Split(removePrefixPath(e.Name, path), "/")
 		// TODO: should I check len here?
 		first := components[0]
 		if _, ok := seen[first]; ok {
@@ -113,28 +115,30 @@ func (z *ZipFs) OpenDir(name string, context *fuse.Context) ([]fuse.DirEntry, fu
 	return files, 0
 }
 
-func (z *ZipFs) GetAttr(name string, context *fuse.Context) (*fuse.Attr, fuse.Status) {
-	size, isFile := z.fileSize(name)
-	if !isFile && !z.isDir(name) {
+// GetAttr returns attributes of path.
+func (z *ZipFs) GetAttr(path string, context *fuse.Context) (*fuse.Attr, fuse.Status) {
+	size, isFile := z.fileSize(path)
+	if !isFile && !z.isDir(path) {
 		return nil, fuse.ENOENT
 	}
 	attr := &fuse.Attr{Mode: mode(isFile), Size: size}
-	debugf("GetAttr: '%s' -> file:%v dir:%v (%v)", name, attr.IsRegular(), attr.IsDir(), attr)
+	debugf("GetAttr: '%s' -> file:%v dir:%v (%v)", path, attr.IsRegular(), attr.IsDir(), attr)
 	return attr, fuse.OK
 }
 
-func (z *ZipFs) Open(name string, flags uint32, context *fuse.Context) (file nodefs.File, code fuse.Status) {
-	f, ok := z.files[name]
+// Open return File representing contents stored under path.
+func (z *ZipFs) Open(path string, flags uint32, context *fuse.Context) (file nodefs.File, code fuse.Status) {
+	f, ok := z.files[path]
 	if !ok {
 		return nil, fuse.ENOENT
 	}
 	r, err := f.Open()
 	if err != nil {
-		debugf("failed to open '%v': %v", name, err)
+		debugf("failed to open '%v': %v", path, err)
 		return nil, fuse.EIO // TODO: EIO?
 	}
 	defer r.Close()
-	b, err := z.read(name, r)
+	b, err := z.read(path, r)
 	if err != nil {
 		debugf("failed to open: %v", err)
 		return nil, fuse.EIO
@@ -142,9 +146,9 @@ func (z *ZipFs) Open(name string, flags uint32, context *fuse.Context) (file nod
 	return nodefs.NewDataFile(b), fuse.OK
 }
 
-func (z *ZipFs) read(name string, r io.Reader) ([]byte, error) {
+func (z *ZipFs) read(path string, r io.Reader) ([]byte, error) {
 	for _, c := range z.comps {
-		if c.isSupported(name) {
+		if c.isSupported(path) {
 			r, err := c.wrap(r)
 			if err != nil {
 				return nil, err
@@ -152,7 +156,7 @@ func (z *ZipFs) read(name string, r io.Reader) ([]byte, error) {
 			return ioutil.ReadAll(r)
 		}
 	}
-	return nil, fmt.Errorf("unsupported format of '%v'", name)
+	return nil, fmt.Errorf("unsupported format of '%v'", path)
 }
 
 func removePrefixPath(s, prefix string) string {
