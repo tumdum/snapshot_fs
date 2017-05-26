@@ -6,6 +6,7 @@ import (
 	"compress/gzip"
 	"io"
 	"io/ioutil"
+	"path"
 	"strings"
 	"syscall"
 
@@ -27,6 +28,7 @@ type ZipFs struct {
 	// caching this way is fast enough for now. If there will be need to make
 	// it faster, this could be chanegd to map from prefix to set of files.
 	files map[string]*zip.File
+	dirs  map[string]struct{}
 	comps []comp
 }
 
@@ -36,16 +38,23 @@ func NewZipFs(r io.ReaderAt, size int64) (*ZipFs, error) {
 		return nil, err
 	}
 	files := map[string]*zip.File{}
+	dirs := map[string]struct{}{}
 	for _, f := range zipr.File {
 		files[f.Name] = f
+		p := path.Dir(f.Name)
+		for p != "." {
+			dirs[p] = struct{}{}
+			p = path.Dir(p)
+		}
 	}
+	dirs[""] = struct{}{}
 	comps := []comp{
 		{isGzip, func(r io.Reader) (io.Reader, error) { return gzip.NewReader(r) }},
 		{isXz, func(r io.Reader) (io.Reader, error) { return xz.NewReader(r) }},
 		{isBzip, func(r io.Reader) (io.Reader, error) { return bzip2.NewReader(r), nil }},
 		{isUncompressed, func(r io.Reader) (io.Reader, error) { return r, nil }},
 	}
-	return &ZipFs{pathfs.NewDefaultFileSystem(), zipr, files, comps}, nil
+	return &ZipFs{pathfs.NewDefaultFileSystem(), zipr, files, dirs, comps}, nil
 }
 
 func (z *ZipFs) isFile(name string) bool {
@@ -97,6 +106,7 @@ func (z *ZipFs) OpenDir(name string, context *fuse.Context) ([]fuse.DirEntry, fu
 			continue
 		}
 		seen[first] = struct{}{}
+		debugf("name: %v", first)
 		files = append(files, fuse.DirEntry{Name: first, Mode: z.mode(first)})
 	}
 	if len(files) == 0 && len(z.files) > 0 {
@@ -118,7 +128,13 @@ func (z *ZipFs) mode(name string) uint32 {
 
 func (z *ZipFs) GetAttr(name string, context *fuse.Context) (*fuse.Attr, fuse.Status) {
 	// TODO: this returns status ok for not exstisting paths
-	size, _ := z.fileSize(name)
+	size, isFile := z.fileSize(name)
+	if !isFile {
+		_, isDir := z.dirs[name]
+		if !isDir {
+			return nil, fuse.ENOENT
+		}
+	}
 	attr := &fuse.Attr{Mode: z.mode(name), Size: size}
 	debugf("GetAttr: %s -> file:%v dir:%v", name, attr.IsRegular(), attr.IsDir())
 	return attr, fuse.OK

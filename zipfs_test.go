@@ -277,5 +277,17 @@ func TestZipFsGetAttrOk(t *testing.T) {
 				t.Fatalf("File '%v' has size %d, but got %d", name, len(content), attr.Size)
 			}
 		}
+		_, status := fs.GetAttr("", &fuse.Context{})
+		if !status.Ok() {
+			t.Fatalf("Nok status for root of fs")
+		}
+	}
+}
+
+func TestZipFsGetAttrNok(t *testing.T) {
+	fs := MustNewZipFs(makeZipFile(multiLevel))
+	_, status := fs.GetAttr("aaaaaaaaaaaaaa", &fuse.Context{})
+	if status.Ok() {
+		t.Fatalf("Ok status returned for not existing path")
 	}
 }
