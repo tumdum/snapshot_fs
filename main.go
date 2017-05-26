@@ -2,6 +2,7 @@ package main
 
 import (
 	"archive/zip"
+	"compress/bzip2"
 	"compress/gzip"
 	"flag"
 	"io"
@@ -50,6 +51,7 @@ func NewZipFs(r io.ReaderAt, size int64) (*ZipFs, error) {
 	comps := []comp{
 		{isGzip, func(r io.Reader) (io.Reader, error) { return gzip.NewReader(r) }},
 		{isXz, func(r io.Reader) (io.Reader, error) { return xz.NewReader(r) }},
+		{isBzip, func(r io.Reader) (io.Reader, error) { return bzip2.NewReader(r), nil }},
 		{isUncompressed, func(r io.Reader) (io.Reader, error) { return r, nil }},
 	}
 	return &ZipFs{pathfs.NewDefaultFileSystem(), zipr, files, comps}, nil
@@ -65,7 +67,7 @@ func (z *ZipFs) fileSize(name string) (uint64, bool) {
 	if !ok {
 		return 0, false
 	}
-	if isGzip(name) || isXz(name) {
+	if isGzip(name) || isXz(name) || isBzip(name) {
 		r, err := f.Open()
 		if err != nil {
 			return 0, false
@@ -182,6 +184,10 @@ func isGzip(path string) bool {
 
 func isXz(path string) bool {
 	return strings.HasSuffix(path, ".xz")
+}
+
+func isBzip(path string) bool {
+	return strings.HasSuffix(path, ".bz2")
 }
 
 func isUncompressed(path string) bool {

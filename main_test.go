@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/dsnet/compress/bzip2"
 	"github.com/ulikunitz/xz"
 
 	"github.com/hanwen/go-fuse/fuse"
@@ -31,6 +32,17 @@ func addFileToZip(w *zip.Writer, path, content string) {
 	} else if strings.HasSuffix(path, ".xz") {
 		var b bytes.Buffer
 		w, err := xz.NewWriter(&b)
+		if err != nil {
+			panic(err)
+		}
+		if _, err := w.Write([]byte(content)); err != nil {
+			panic(err)
+		}
+		w.Close()
+		r = &b
+	} else if strings.HasSuffix(path, ".bz2") {
+		var b bytes.Buffer
+		w, err := bzip2.NewWriter(&b, &bzip2.WriterConfig{Level: 3})
 		if err != nil {
 			panic(err)
 		}
@@ -91,6 +103,12 @@ var (
 		"c.xz":     "dddddddddddddddddddddddddddddddddddddddddddddddddddddd",
 		"f/g/h.xz": "iiiiii",
 		"f/g/j.xz": "kkkkk",
+	}
+	withBziped = map[string]string{
+		"a":         "b",
+		"c.bz2":     "dddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+		"f/g/h.bz2": "iiiiii",
+		"f/g/j.bz2": "kkkkk",
 	}
 )
 
@@ -227,7 +245,7 @@ func TestZipFsOpenNotExisting(t *testing.T) {
 }
 
 func TestZipFsOpenOk(t *testing.T) {
-	for _, config := range []map[string]string{multiLevel, withGziped, withXziped} {
+	for _, config := range []map[string]string{multiLevel, withGziped, withXziped, withBziped} {
 		fs := MustNewZipFs(makeZipFile(config))
 		for name, content := range config {
 			readContent := mustReadFuseFile(name, len(content), fs, t)
@@ -239,7 +257,7 @@ func TestZipFsOpenOk(t *testing.T) {
 }
 
 func TestZipFsGetAttrOk(t *testing.T) {
-	for _, config := range []map[string]string{multiLevel, withGziped, withXziped} {
+	for _, config := range []map[string]string{multiLevel, withGziped, withXziped, withBziped} {
 		fs := MustNewZipFs(makeZipFile(config))
 		for name, content := range config {
 			attr, status := fs.GetAttr(name, &fuse.Context{})
