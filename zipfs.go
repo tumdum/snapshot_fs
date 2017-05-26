@@ -143,10 +143,6 @@ func (z *ZipFs) Open(name string, flags uint32, context *fuse.Context) (file nod
 	return nodefs.NewDataFile(b), fuse.OK
 }
 
-func NewReader(r io.Reader) (io.Reader, error) {
-	return r, nil
-}
-
 func (z *ZipFs) read(name string, r io.Reader) ([]byte, error) {
 	var reader io.Reader
 
