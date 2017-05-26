@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"compress/bzip2"
 	"compress/gzip"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"path"
@@ -112,11 +113,6 @@ func (z *ZipFs) OpenDir(name string, context *fuse.Context) ([]fuse.DirEntry, fu
 	return files, 0
 }
 
-func (z *ZipFs) mode(name string) uint32 {
-	_, isFile := z.files[name]
-	return mode(isFile)
-}
-
 func (z *ZipFs) GetAttr(name string, context *fuse.Context) (*fuse.Attr, fuse.Status) {
 	size, isFile := z.fileSize(name)
 	if !isFile && !z.isDir(name) {
@@ -156,7 +152,7 @@ func (z *ZipFs) read(name string, r io.Reader) ([]byte, error) {
 			return ioutil.ReadAll(r)
 		}
 	}
-	return ioutil.ReadAll(r)
+	return nil, fmt.Errorf("unsupported format of '%v'", name)
 }
 
 func removePrefixPath(s, prefix string) string {
