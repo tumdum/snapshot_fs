@@ -121,6 +121,14 @@ func MustNewZipFs(b []byte) pathfs.FileSystem {
 	return fs
 }
 
+func TestNewZipFsReturnsErrorOnMalformedZipArchive(t *testing.T) {
+	r := strings.NewReader("test")
+	_, err := NewZipFs(r, 4)
+	if err == nil {
+		t.Fatalf("Passing malformed reader to NewZipFs did not result in error")
+	}
+}
+
 func TestZipFsOpenDirOnEmptyFile(t *testing.T) {
 	fs := MustNewZipFs(makeZipFile(nil))
 	entries, status := fs.OpenDir("", &fuse.Context{})
