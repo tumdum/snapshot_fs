@@ -212,6 +212,15 @@ func recursiveFindDir(root dir, path string) dir {
 	return current
 }
 
+func recursiveFindFile(root dir, p string) file {
+	base := path.Dir(p)
+	d := recursiveFindDir(root, base)
+	if d == nil {
+		return nil
+	}
+	return d.FindFile(path.Base(p))
+}
+
 // ZipFs is a fuse filesystem that mounts zip archives
 type ZipFs struct {
 	pathfs.FileSystem
@@ -251,17 +260,11 @@ func NewZipFs(r io.ReaderAt, size int64) (pathfs.FileSystem, error) {
 }
 
 func (z *ZipFs) isDir(path string) bool {
-	d := recursiveFindDir(z.root, path)
-	return d != nil
+	return recursiveFindDir(z.root, path) != nil
 }
 
 func (z *ZipFs) fileSize(p string) (uint64, bool) {
-	base := path.Dir(p)
-	d := recursiveFindDir(z.root, base)
-	if d == nil {
-		return 0, false
-	}
-	f := d.FindFile(path.Base(p))
+	f := recursiveFindFile(z.root, p)
 	if f == nil {
 		return 0, false
 	}
@@ -305,12 +308,7 @@ func (z *ZipFs) GetAttr(path string, context *fuse.Context) (*fuse.Attr, fuse.St
 
 // Open return File representing contents stored under path p.
 func (z *ZipFs) Open(p string, flags uint32, context *fuse.Context) (nodefs.File, fuse.Status) {
-	base := path.Dir(p)
-	d := recursiveFindDir(z.root, base)
-	if d == nil {
-		return nil, fuse.ENOENT
-	}
-	f := d.FindFile(path.Base(p))
+	f := recursiveFindFile(z.root, p)
 	if f == nil {
 		return nil, fuse.ENOENT
 	}
