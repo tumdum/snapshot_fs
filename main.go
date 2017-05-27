@@ -6,7 +6,6 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"strings"
 
 	"github.com/hanwen/go-fuse/fuse/nodefs"
 	"github.com/hanwen/go-fuse/fuse/pathfs"
@@ -16,22 +15,6 @@ func debugf(format string, args ...interface{}) {
 	if *verbose || *vverbose {
 		log.Printf(format, args...)
 	}
-}
-
-func isGzip(path string) bool {
-	return strings.HasSuffix(path, ".gz")
-}
-
-func isXz(path string) bool {
-	return strings.HasSuffix(path, ".xz")
-}
-
-func isBzip(path string) bool {
-	return strings.HasSuffix(path, ".bz2")
-}
-
-func isUncompressed(path string) bool {
-	return true
 }
 
 var (

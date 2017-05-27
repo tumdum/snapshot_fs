@@ -4,9 +4,9 @@ import (
 	"archive/zip"
 	"compress/bzip2"
 	"compress/gzip"
-	"fmt"
 	"io"
 	"io/ioutil"
+	"math"
 	"path"
 	"strings"
 
@@ -21,15 +21,85 @@ type comp struct {
 	wrap        func(io.Reader) (io.Reader, error)
 }
 
+type file interface {
+	Size() (uint64, error)
+	Bytes() ([]byte, error)
+}
+
+type plainFile struct {
+	z *zip.File
+}
+
+func (f *plainFile) Size() (uint64, error) {
+	return f.z.UncompressedSize64, nil
+}
+
+func (f *plainFile) Bytes() ([]byte, error) {
+	r, err := f.z.Open()
+	if err != nil {
+		return nil, err
+	}
+	defer r.Close()
+	return ioutil.ReadAll(r)
+}
+
+type compressedFile struct {
+	z            *zip.File
+	decompressor func(io.Reader) (io.Reader, error)
+	size         uint64
+}
+
+func (f *compressedFile) Bytes() ([]byte, error) {
+	r, err := f.z.Open()
+	if err != nil {
+		return nil, err
+	}
+	defer r.Close()
+	c, err := f.decompressor(r)
+	if err != nil {
+		return nil, err
+	}
+	return ioutil.ReadAll(c)
+}
+
+func (f *compressedFile) Size() (uint64, error) {
+	if f.size != math.MaxUint64 {
+		return f.size, nil
+	}
+	b, err := f.Bytes()
+	if err != nil {
+		return 0, err
+	}
+	return uint64(len(b)), nil
+}
+
+func NewPlainFile(z *zip.File) file {
+	return &plainFile{z}
+}
+
+func NewGzipFile(z *zip.File) file {
+	d := func(r io.Reader) (io.Reader, error) { return gzip.NewReader(r) }
+	return &compressedFile{z, d, math.MaxUint64}
+}
+
+func NewXzFile(z *zip.File) file {
+	d := func(r io.Reader) (io.Reader, error) { return xz.NewReader(r) }
+	return &compressedFile{z, d, math.MaxUint64}
+}
+
+func NewBzip2File(z *zip.File) file {
+	d := func(r io.Reader) (io.Reader, error) { return bzip2.NewReader(r), nil }
+	return &compressedFile{z, d, math.MaxUint64}
+}
+
 // ZipFs is a fuse filesystem that mounts zip archives
 type ZipFs struct {
 	pathfs.FileSystem
 	z *zip.Reader
 	// caching this way is fast enough for now. If there will be need to make
 	// it faster, this could be chanegd to map from prefix to set of files.
-	files map[string]*zip.File
+	files map[string]file
 	dirs  map[string]struct{}
-	comps []comp
 }
 
 // NewZipFs returns new filesystem reading zip archive from r of size.
@@ -38,10 +108,21 @@ func NewZipFs(r io.ReaderAt, size int64) (pathfs.FileSystem, error) {
 	if err != nil {
 		return nil, err
 	}
-	files := map[string]*zip.File{}
+	files := map[string]file{}
 	dirs := map[string]struct{}{}
 	for _, f := range zipr.File {
-		files[f.Name] = f
+		var file file
+		switch {
+		case strings.HasSuffix(f.Name, ".gz"):
+			file = NewGzipFile(f)
+		case strings.HasSuffix(f.Name, ".xz"):
+			file = NewXzFile(f)
+		case strings.HasSuffix(f.Name, ".bz2"):
+			file = NewBzip2File(f)
+		default:
+			file = NewPlainFile(f)
+		}
+		files[f.Name] = file
 		p := path.Dir(f.Name)
 		for p != "." {
 			dirs[p] = struct{}{}
@@ -49,13 +130,7 @@ func NewZipFs(r io.ReaderAt, size int64) (pathfs.FileSystem, error) {
 		}
 	}
 	dirs[""] = struct{}{}
-	comps := []comp{
-		{isGzip, func(r io.Reader) (io.Reader, error) { return gzip.NewReader(r) }},
-		{isXz, func(r io.Reader) (io.Reader, error) { return xz.NewReader(r) }},
-		{isBzip, func(r io.Reader) (io.Reader, error) { return bzip2.NewReader(r), nil }},
-		{isUncompressed, func(r io.Reader) (io.Reader, error) { return r, nil }},
-	}
-	zfs := &ZipFs{pathfs.NewDefaultFileSystem(), zipr, files, dirs, comps}
+	zfs := &ZipFs{pathfs.NewDefaultFileSystem(), zipr, files, dirs}
 	return pathfs.NewLockingFileSystem(zfs), nil
 }
 
@@ -69,18 +144,12 @@ func (z *ZipFs) fileSize(path string) (uint64, bool) {
 	if !ok {
 		return 0, false
 	}
-	if isGzip(path) || isXz(path) || isBzip(path) {
-		r, err := f.Open()
-		if err != nil {
-			return 0, false
-		}
-		l, err := z.read(path, r)
-		if err != nil {
-			return 0, false
-		}
-		return uint64(len(l)), true
+	s, err := f.Size()
+	if err != nil {
+		debugf("file size failed for '%v': %v", path, err)
+		return 0, false
 	}
-	return f.UncompressedSize64, true
+	return s, true
 }
 
 func isProperPrefix(s, prefix string) bool {
@@ -105,7 +174,7 @@ func (z *ZipFs) OpenDir(path string, context *fuse.Context) ([]fuse.DirEntry, fu
 		components := strings.Split(removePrefixPath(e.Name, path), "/")
 		// TODO: should I check len here?
 		first := components[0]
-		if _, ok := seen[first]; ok {
+		if _, ok := seen[first]; ok || first == "" {
 			continue
 		}
 		mode := mode(len(components) == 1)
@@ -132,31 +201,12 @@ func (z *ZipFs) Open(path string, flags uint32, context *fuse.Context) (file nod
 	if !ok {
 		return nil, fuse.ENOENT
 	}
-	r, err := f.Open()
+	b, err := f.Bytes()
 	if err != nil {
-		debugf("failed to open '%v': %v", path, err)
-		return nil, fuse.EIO // TODO: EIO?
-	}
-	defer r.Close()
-	b, err := z.read(path, r)
-	if err != nil {
-		debugf("failed to open: %v", err)
+		debugf("open '%v' failed: %v", path, err)
 		return nil, fuse.EIO
 	}
 	return nodefs.NewDataFile(b), fuse.OK
-}
-
-func (z *ZipFs) read(path string, r io.Reader) ([]byte, error) {
-	for _, c := range z.comps {
-		if c.isSupported(path) {
-			r, err := c.wrap(r)
-			if err != nil {
-				return nil, err
-			}
-			return ioutil.ReadAll(r)
-		}
-	}
-	return nil, fmt.Errorf("unsupported format of '%v'", path)
 }
 
 func removePrefixPath(s, prefix string) string {
