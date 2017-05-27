@@ -17,11 +17,6 @@ import (
 	"github.com/ulikunitz/xz"
 )
 
-type comp struct {
-	isSupported func(string) bool
-	wrap        func(io.Reader) (io.Reader, error)
-}
-
 type file interface {
 	Name() string
 	Size() (uint64, error)
@@ -54,7 +49,7 @@ func (f *plainFile) String() string {
 }
 
 type compressedFile struct {
-	z            *zip.File
+	plainFile
 	decompressor func(io.Reader) (io.Reader, error)
 	size         uint64
 }
@@ -91,23 +86,23 @@ func (f *compressedFile) String() string {
 	return f.Name()
 }
 
-func newPlainFile(z *zip.File) file {
+func newPlainFile(z *zip.File) *plainFile {
 	return &plainFile{z}
 }
 
-func newGzipFile(z *zip.File) file {
+func newGzipFile(z *zip.File) *compressedFile {
 	d := func(r io.Reader) (io.Reader, error) { return gzip.NewReader(r) }
-	return &compressedFile{z, d, math.MaxUint64}
+	return &compressedFile{*newPlainFile(z), d, math.MaxUint64}
 }
 
-func newXzFile(z *zip.File) file {
+func newXzFile(z *zip.File) *compressedFile {
 	d := func(r io.Reader) (io.Reader, error) { return xz.NewReader(r) }
-	return &compressedFile{z, d, math.MaxUint64}
+	return &compressedFile{*newPlainFile(z), d, math.MaxUint64}
 }
 
-func newBzip2File(z *zip.File) file {
+func newBzip2File(z *zip.File) *compressedFile {
 	d := func(r io.Reader) (io.Reader, error) { return bzip2.NewReader(r), nil }
-	return &compressedFile{z, d, math.MaxUint64}
+	return &compressedFile{*newPlainFile(z), d, math.MaxUint64}
 }
 
 type dir interface {
