@@ -273,13 +273,6 @@ func (z *ZipFs) fileSize(p string) (uint64, bool) {
 	return s, true
 }
 
-func isProperPrefix(s, prefix string) bool {
-	if !strings.HasPrefix(s, prefix) {
-		return false
-	}
-	return !(len(prefix) > 0 && len(s) > len(prefix) && s[len(prefix)] != '/')
-}
-
 // OpenDir returns list of files and directories directly under path.
 func (z *ZipFs) OpenDir(path string, context *fuse.Context) ([]fuse.DirEntry, fuse.Status) {
 	debugf("OpenDir: '%s'", path)
@@ -296,27 +289,6 @@ func (z *ZipFs) OpenDir(path string, context *fuse.Context) ([]fuse.DirEntry, fu
 	}
 	debugf("root: %v", z.root)
 	return tmp, fuse.OK
-
-	if !z.isDir(path) {
-		return nil, fuse.ENOENT
-	}
-	files := make([]fuse.DirEntry, 0)
-	seen := map[string]struct{}{}
-	for _, e := range z.z.File {
-		if !isProperPrefix(e.Name, path) {
-			continue
-		}
-		components := strings.Split(removePrefixPath(e.Name, path), "/")
-		// TODO: should I check len here?
-		first := components[0]
-		if _, ok := seen[first]; ok || first == "" {
-			continue
-		}
-		mode := mode(len(components) == 1)
-		seen[first] = struct{}{}
-		files = append(files, fuse.DirEntry{Name: first, Mode: mode})
-	}
-	return files, 0
 }
 
 // GetAttr returns attributes of path.
@@ -348,14 +320,6 @@ func (z *ZipFs) Open(p string, flags uint32, context *fuse.Context) (nodefs.File
 		return nil, fuse.EIO
 	}
 	return nodefs.NewDataFile(b), fuse.OK
-}
-
-func removePrefixPath(s, prefix string) string {
-	suffix := strings.TrimPrefix(s, prefix)
-	if suffix != "" && suffix[0] == '/' {
-		suffix = suffix[1:]
-	}
-	return suffix
 }
 
 func mode(isFile bool) uint32 {
