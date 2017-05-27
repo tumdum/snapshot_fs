@@ -221,10 +221,10 @@ func recursiveFindFile(root dir, p string) file {
 	return d.FindFile(path.Base(p))
 }
 
-// ZipFs is a fuse filesystem that mounts zip archives
-type ZipFs struct {
+// StaticTreeFs is a fuse filesystem that mounts tree like filesystem that do not
+// change shape after mounting.
+type StaticTreeFs struct {
 	pathfs.FileSystem
-	z    *zip.Reader
 	root dir
 }
 
@@ -255,16 +255,16 @@ func NewZipFs(r io.ReaderAt, size int64) (pathfs.FileSystem, error) {
 			root.AddFile(file)
 		}
 	}
-	zfs := &ZipFs{pathfs.NewDefaultFileSystem(), zipr, root}
+	zfs := &StaticTreeFs{pathfs.NewDefaultFileSystem(), root}
 	return pathfs.NewLockingFileSystem(zfs), nil
 }
 
-func (z *ZipFs) isDir(path string) bool {
-	return recursiveFindDir(z.root, path) != nil
+func (fs *StaticTreeFs) isDir(path string) bool {
+	return recursiveFindDir(fs.root, path) != nil
 }
 
-func (z *ZipFs) fileSize(p string) (uint64, bool) {
-	f := recursiveFindFile(z.root, p)
+func (fs *StaticTreeFs) fileSize(p string) (uint64, bool) {
+	f := recursiveFindFile(fs.root, p)
 	if f == nil {
 		return 0, false
 	}
@@ -277,9 +277,9 @@ func (z *ZipFs) fileSize(p string) (uint64, bool) {
 }
 
 // OpenDir returns list of files and directories directly under path.
-func (z *ZipFs) OpenDir(path string, context *fuse.Context) ([]fuse.DirEntry, fuse.Status) {
+func (fs *StaticTreeFs) OpenDir(path string, context *fuse.Context) ([]fuse.DirEntry, fuse.Status) {
 	debugf("OpenDir: '%s'", path)
-	d := recursiveFindDir(z.root, path)
+	d := recursiveFindDir(fs.root, path)
 	if d == nil {
 		return nil, fuse.ENOENT
 	}
@@ -290,14 +290,14 @@ func (z *ZipFs) OpenDir(path string, context *fuse.Context) ([]fuse.DirEntry, fu
 	for _, d := range d.Dirs() {
 		tmp = append(tmp, fuse.DirEntry{Name: d.Name(), Mode: mode(false)})
 	}
-	debugf("root: %v", z.root)
+	debugf("root: %v", fs.root)
 	return tmp, fuse.OK
 }
 
 // GetAttr returns attributes of path.
-func (z *ZipFs) GetAttr(path string, context *fuse.Context) (*fuse.Attr, fuse.Status) {
-	size, isFile := z.fileSize(path)
-	if !isFile && !z.isDir(path) {
+func (fs *StaticTreeFs) GetAttr(path string, context *fuse.Context) (*fuse.Attr, fuse.Status) {
+	size, isFile := fs.fileSize(path)
+	if !isFile && !fs.isDir(path) {
 		debugf("GetAttr: '%s' -> does not exist", path)
 		return nil, fuse.ENOENT
 	}
@@ -307,8 +307,8 @@ func (z *ZipFs) GetAttr(path string, context *fuse.Context) (*fuse.Attr, fuse.St
 }
 
 // Open return File representing contents stored under path p.
-func (z *ZipFs) Open(p string, flags uint32, context *fuse.Context) (nodefs.File, fuse.Status) {
-	f := recursiveFindFile(z.root, p)
+func (fs *StaticTreeFs) Open(p string, flags uint32, context *fuse.Context) (nodefs.File, fuse.Status) {
+	f := recursiveFindFile(fs.root, p)
 	if f == nil {
 		return nil, fuse.ENOENT
 	}
