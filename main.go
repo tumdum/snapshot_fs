@@ -2,8 +2,10 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
 	"os"
+	"os/signal"
 	"strings"
 
 	"github.com/hanwen/go-fuse/fuse/nodefs"
@@ -61,6 +63,16 @@ func main() {
 	nfs := pathfs.NewPathNodeFs(fs, nil)
 	server, _, err := nodefs.MountRoot(flag.Arg(0), nfs.Root(), nil)
 	failOnErr("Could not mount: %v", err)
+
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt)
+	go func() {
+		<-c
+		if err := server.Unmount(); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to unmount fs: %v", err)
+			os.Exit(1)
+		}
+	}()
 
 	server.SetDebug(*vverbose)
 	server.Serve()
