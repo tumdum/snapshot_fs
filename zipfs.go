@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"compress/bzip2"
 	"compress/gzip"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"math"
@@ -22,12 +23,17 @@ type comp struct {
 }
 
 type file interface {
+	Name() string
 	Size() (uint64, error)
 	Bytes() ([]byte, error)
 }
 
 type plainFile struct {
 	z *zip.File
+}
+
+func (f *plainFile) Name() string {
+	return path.Base(f.z.Name)
 }
 
 func (f *plainFile) Size() (uint64, error) {
@@ -43,10 +49,18 @@ func (f *plainFile) Bytes() ([]byte, error) {
 	return ioutil.ReadAll(r)
 }
 
+func (f *plainFile) String() string {
+	return f.Name()
+}
+
 type compressedFile struct {
 	z            *zip.File
 	decompressor func(io.Reader) (io.Reader, error)
 	size         uint64
+}
+
+func (f *compressedFile) Name() string {
+	return path.Base(f.z.Name)
 }
 
 func (f *compressedFile) Bytes() ([]byte, error) {
@@ -73,33 +87,136 @@ func (f *compressedFile) Size() (uint64, error) {
 	return uint64(len(b)), nil
 }
 
-func NewPlainFile(z *zip.File) file {
+func (f *compressedFile) String() string {
+	return f.Name()
+}
+
+func newPlainFile(z *zip.File) file {
 	return &plainFile{z}
 }
 
-func NewGzipFile(z *zip.File) file {
+func newGzipFile(z *zip.File) file {
 	d := func(r io.Reader) (io.Reader, error) { return gzip.NewReader(r) }
 	return &compressedFile{z, d, math.MaxUint64}
 }
 
-func NewXzFile(z *zip.File) file {
+func newXzFile(z *zip.File) file {
 	d := func(r io.Reader) (io.Reader, error) { return xz.NewReader(r) }
 	return &compressedFile{z, d, math.MaxUint64}
 }
 
-func NewBzip2File(z *zip.File) file {
+func newBzip2File(z *zip.File) file {
 	d := func(r io.Reader) (io.Reader, error) { return bzip2.NewReader(r), nil }
 	return &compressedFile{z, d, math.MaxUint64}
+}
+
+type dir interface {
+	Name() string
+	Files() []file
+	Dirs() []dir
+	AddDir(string) dir
+	AddFile(file) file
+	FindDir(string) dir
+	FindFile(string) file
+}
+
+type plainDir struct {
+	name string
+	// NOTE: it could be good idea to change this to map[string]{file,dir} for
+	// faster lookup
+	files []file
+	dirs  []dir
+}
+
+func (d *plainDir) Name() string {
+	return d.name
+}
+
+func (d *plainDir) Files() []file {
+	return d.files
+}
+
+func (d *plainDir) Dirs() []dir {
+	return d.dirs
+}
+
+func (d *plainDir) FindDir(name string) dir {
+	for _, dir := range d.dirs {
+		if dir.Name() == name {
+			return dir
+		}
+	}
+	return nil
+}
+
+func (d *plainDir) FindFile(name string) file {
+	for _, file := range d.files {
+		if file.Name() == name {
+			return file
+		}
+	}
+	return nil
+}
+
+func (d *plainDir) AddFile(newFile file) file {
+	for _, f := range d.files {
+		if f.Name() == newFile.Name() {
+			return f
+		}
+	}
+	d.files = append(d.files, newFile)
+	return newFile
+}
+
+func (d *plainDir) AddDir(name string) dir {
+	existing := d.FindDir(name)
+	if existing != nil {
+		return existing
+	}
+	newDir := newPlainDir(name)
+	d.dirs = append(d.dirs, newDir)
+	return newDir
+}
+
+func (d *plainDir) String() string {
+	return fmt.Sprintf("{dir name: '%s', files: '%v', dirs: '%v'}", d.Name(), d.files, d.dirs)
+}
+
+func newPlainDir(name string) dir {
+	return &plainDir{name, nil, nil}
+}
+
+func recursiveAddDir(root dir, path string) dir {
+	comps := strings.Split(path, "/")
+	current := root
+	for _, comp := range comps {
+		current = current.AddDir(comp)
+	}
+	return current
+}
+
+func recursiveFindDir(root dir, path string) dir {
+	if root.Name() == path || path == "." {
+		return root
+	}
+
+	comps := strings.Split(path, "/")
+	current := root
+	for _, comp := range comps {
+		d := current.FindDir(comp)
+		if d == nil {
+			return nil
+		}
+		current = d
+	}
+	return current
 }
 
 // ZipFs is a fuse filesystem that mounts zip archives
 type ZipFs struct {
 	pathfs.FileSystem
-	z *zip.Reader
-	// caching this way is fast enough for now. If there will be need to make
-	// it faster, this could be chanegd to map from prefix to set of files.
-	files map[string]file
-	dirs  map[string]struct{}
+	z    *zip.Reader
+	root dir
 }
 
 // NewZipFs returns new filesystem reading zip archive from r of size.
@@ -108,45 +225,49 @@ func NewZipFs(r io.ReaderAt, size int64) (pathfs.FileSystem, error) {
 	if err != nil {
 		return nil, err
 	}
-	files := map[string]file{}
-	dirs := map[string]struct{}{}
+	root := newPlainDir("")
 	for _, f := range zipr.File {
 		var file file
 		switch {
 		case strings.HasSuffix(f.Name, ".gz"):
-			file = NewGzipFile(f)
+			file = newGzipFile(f)
 		case strings.HasSuffix(f.Name, ".xz"):
-			file = NewXzFile(f)
+			file = newXzFile(f)
 		case strings.HasSuffix(f.Name, ".bz2"):
-			file = NewBzip2File(f)
+			file = newBzip2File(f)
 		default:
-			file = NewPlainFile(f)
+			file = newPlainFile(f)
 		}
-		files[f.Name] = file
 		p := path.Dir(f.Name)
-		for p != "." {
-			dirs[p] = struct{}{}
-			p = path.Dir(p)
+		if p != "." {
+			d := recursiveAddDir(root, p)
+			d.AddFile(file)
+		} else {
+			root.AddFile(file)
 		}
 	}
-	dirs[""] = struct{}{}
-	zfs := &ZipFs{pathfs.NewDefaultFileSystem(), zipr, files, dirs}
+	zfs := &ZipFs{pathfs.NewDefaultFileSystem(), zipr, root}
 	return pathfs.NewLockingFileSystem(zfs), nil
 }
 
 func (z *ZipFs) isDir(path string) bool {
-	_, ok := z.dirs[path]
-	return ok
+	d := recursiveFindDir(z.root, path)
+	return d != nil
 }
 
-func (z *ZipFs) fileSize(path string) (uint64, bool) {
-	f, ok := z.files[path]
-	if !ok {
+func (z *ZipFs) fileSize(p string) (uint64, bool) {
+	base := path.Dir(p)
+	d := recursiveFindDir(z.root, base)
+	if d == nil {
+		return 0, false
+	}
+	f := d.FindFile(path.Base(p))
+	if f == nil {
 		return 0, false
 	}
 	s, err := f.Size()
 	if err != nil {
-		debugf("file size failed for '%v': %v", path, err)
+		debugf("file size failed for '%v': %v", p, err)
 		return 0, false
 	}
 	return s, true
@@ -162,6 +283,20 @@ func isProperPrefix(s, prefix string) bool {
 // OpenDir returns list of files and directories directly under path.
 func (z *ZipFs) OpenDir(path string, context *fuse.Context) ([]fuse.DirEntry, fuse.Status) {
 	debugf("OpenDir: '%s'", path)
+	d := recursiveFindDir(z.root, path)
+	if d == nil {
+		return nil, fuse.ENOENT
+	}
+	tmp := make([]fuse.DirEntry, 0)
+	for _, f := range d.Files() {
+		tmp = append(tmp, fuse.DirEntry{Name: f.Name(), Mode: mode(true)})
+	}
+	for _, d := range d.Dirs() {
+		tmp = append(tmp, fuse.DirEntry{Name: d.Name(), Mode: mode(false)})
+	}
+	debugf("root: %v", z.root)
+	return tmp, fuse.OK
+
 	if !z.isDir(path) {
 		return nil, fuse.ENOENT
 	}
@@ -188,6 +323,7 @@ func (z *ZipFs) OpenDir(path string, context *fuse.Context) ([]fuse.DirEntry, fu
 func (z *ZipFs) GetAttr(path string, context *fuse.Context) (*fuse.Attr, fuse.Status) {
 	size, isFile := z.fileSize(path)
 	if !isFile && !z.isDir(path) {
+		debugf("GetAttr: '%s' -> does not exist", path)
 		return nil, fuse.ENOENT
 	}
 	attr := &fuse.Attr{Mode: mode(isFile), Size: size}
@@ -195,15 +331,20 @@ func (z *ZipFs) GetAttr(path string, context *fuse.Context) (*fuse.Attr, fuse.St
 	return attr, fuse.OK
 }
 
-// Open return File representing contents stored under path.
-func (z *ZipFs) Open(path string, flags uint32, context *fuse.Context) (file nodefs.File, code fuse.Status) {
-	f, ok := z.files[path]
-	if !ok {
+// Open return File representing contents stored under path p.
+func (z *ZipFs) Open(p string, flags uint32, context *fuse.Context) (nodefs.File, fuse.Status) {
+	base := path.Dir(p)
+	d := recursiveFindDir(z.root, base)
+	if d == nil {
+		return nil, fuse.ENOENT
+	}
+	f := d.FindFile(path.Base(p))
+	if f == nil {
 		return nil, fuse.ENOENT
 	}
 	b, err := f.Bytes()
 	if err != nil {
-		debugf("open '%v' failed: %v", path, err)
+		debugf("open '%v' failed: %v", p, err)
 		return nil, fuse.EIO
 	}
 	return nodefs.NewDataFile(b), fuse.OK

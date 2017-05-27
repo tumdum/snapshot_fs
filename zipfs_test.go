@@ -113,6 +113,14 @@ var (
 	}
 )
 
+func keys(m map[string]string) []string {
+	keys := []string{}
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
+}
+
 func MustNewZipFs(b []byte) pathfs.FileSystem {
 	r := bytes.NewReader(b)
 	fs, err := NewZipFs(r, int64(r.Len()))
@@ -146,7 +154,7 @@ func TestZipFsOpenDirOnFlatFile(t *testing.T) {
 	verifyStatus("", status, t)
 
 	if len(entries) != len(flatFile) {
-		t.Fatalf("Expected %d entries, got %d: %v", len(flatFile), len(entries), entries)
+		t.Fatalf("Expected %d entries, got %d: %v vs %v", len(flatFile), len(entries), keys(flatFile), entries)
 	}
 	for _, entry := range entries {
 		if _, ok := flatFile[entry.Name]; !ok {
@@ -305,4 +313,28 @@ func TestZipFsGetAttrNok(t *testing.T) {
 	if status.Ok() {
 		t.Fatalf("Ok status returned for not existing path")
 	}
+}
+
+func verifyDirName(d dir, name string, t *testing.T) {
+	if d.Name() != name {
+		t.Fatalf("Expected name '%v', got '%v'", name, d.Name())
+	}
+}
+
+func TestAddDir(t *testing.T) {
+	root := newPlainDir("")
+	ret := recursiveAddDir(root, "foo/bar/baz")
+	verifyDirName(ret, "baz", t)
+
+	foo := root.FindDir("foo")
+	verifyDirName(foo, "foo", t)
+	verifyDirName(recursiveFindDir(root, "foo"), "foo", t)
+
+	bar := foo.FindDir("bar")
+	verifyDirName(bar, "bar", t)
+	verifyDirName(recursiveFindDir(root, "foo/bar"), "bar", t)
+
+	baz := bar.FindDir("baz")
+	verifyDirName(baz, "baz", t)
+	verifyDirName(recursiveFindDir(root, "foo/bar/baz"), "baz", t)
 }
