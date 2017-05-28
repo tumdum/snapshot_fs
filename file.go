@@ -16,6 +16,7 @@ import (
 type file interface {
 	Name() string
 	Size() (uint64, error)
+	ReadCloser() (io.ReadCloser, error)
 	Bytes() ([]byte, error)
 }
 
@@ -31,8 +32,12 @@ func (f *plainFile) Size() (uint64, error) {
 	return f.z.UncompressedSize64, nil
 }
 
+func (f *plainFile) ReadCloser() (io.ReadCloser, error) {
+	return f.z.Open()
+}
+
 func (f *plainFile) Bytes() ([]byte, error) {
-	r, err := f.z.Open()
+	r, err := f.ReadCloser()
 	if err != nil {
 		return nil, err
 	}
@@ -45,26 +50,47 @@ func (f *plainFile) String() string {
 }
 
 type compressedFile struct {
-	plainFile
+	file
 	decompressor func(io.Reader) (io.Reader, error)
 	size         uint64
 }
 
 func (f *compressedFile) Name() string {
-	return path.Base(f.z.Name)
+	return f.file.Name()
+}
+
+type readcloser struct {
+	close func() error
+	r     io.Reader
+}
+
+func (r *readcloser) Close() error {
+	return r.close()
+}
+
+func (r *readcloser) Read(b []byte) (int, error) {
+	return r.r.Read(b)
+}
+
+func (f *compressedFile) ReadCloser() (io.ReadCloser, error) {
+	r, err := f.file.ReadCloser()
+	if err != nil {
+		return nil, err
+	}
+	return &readcloser{r.Close, r}, nil
 }
 
 func (f *compressedFile) Bytes() ([]byte, error) {
-	r, err := f.z.Open()
+	rc, err := f.ReadCloser()
 	if err != nil {
 		return nil, err
 	}
-	defer r.Close()
-	c, err := f.decompressor(r)
+	defer rc.Close()
+	d, err := f.decompressor(rc)
 	if err != nil {
 		return nil, err
 	}
-	return ioutil.ReadAll(c)
+	return ioutil.ReadAll(d)
 }
 
 func (f *compressedFile) Size() (uint64, error) {
@@ -88,17 +114,17 @@ func newPlainFile(z *zip.File) *plainFile {
 
 func newGzipFile(z *zip.File) *compressedFile {
 	d := func(r io.Reader) (io.Reader, error) { return gzip.NewReader(r) }
-	return &compressedFile{*newPlainFile(z), d, math.MaxUint64}
+	return &compressedFile{newPlainFile(z), d, math.MaxUint64}
 }
 
 func newXzFile(z *zip.File) *compressedFile {
 	d := func(r io.Reader) (io.Reader, error) { return xz.NewReader(r) }
-	return &compressedFile{*newPlainFile(z), d, math.MaxUint64}
+	return &compressedFile{newPlainFile(z), d, math.MaxUint64}
 }
 
 func newBzip2File(z *zip.File) *compressedFile {
 	d := func(r io.Reader) (io.Reader, error) { return bzip2.NewReader(r), nil }
-	return &compressedFile{*newPlainFile(z), d, math.MaxUint64}
+	return &compressedFile{newPlainFile(z), d, math.MaxUint64}
 }
 
 func newFile(f *zip.File) file {
