@@ -254,7 +254,7 @@ func TestZipFsOpenDirModeMultiLevel(t *testing.T) {
 
 func TestZipFsOpenDirWithExplicitDirs(t *testing.T) {
 	fs := MustNewZipFs(makeZipFile(multiLevelWithDirs))
-	expected := map[string]struct{}{"b": struct{}{}}
+	expected := map[string]struct{}{"b": {}}
 	entries, status := fs.OpenDir("a", &fuse.Context{})
 	verifyStatus("a", status, t)
 	if len(expected) != len(entries) {
