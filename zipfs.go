@@ -105,6 +105,19 @@ func newBzip2File(z *zip.File) *compressedFile {
 	return &compressedFile{*newPlainFile(z), d, math.MaxUint64}
 }
 
+func newFile(f *zip.File) file {
+	switch {
+	case strings.HasSuffix(f.Name, ".gz"):
+		return newGzipFile(f)
+	case strings.HasSuffix(f.Name, ".xz"):
+		return newXzFile(f)
+	case strings.HasSuffix(f.Name, ".bz2"):
+		return newBzip2File(f)
+	default:
+		return newPlainFile(f)
+	}
+}
+
 type dir interface {
 	Name() string
 	Files() []file
@@ -182,6 +195,9 @@ func newPlainDir(name string) dir {
 }
 
 func recursiveAddDir(root dir, path string) dir {
+	if path == "." {
+		return root
+	}
 	comps := strings.Split(path, "/")
 	current := root
 	for _, comp := range comps {
@@ -198,9 +214,8 @@ func recursiveFindDir(root dir, path string) dir {
 		return root
 	}
 
-	comps := strings.Split(path, "/")
 	current := root
-	for _, comp := range comps {
+	for _, comp := range strings.Split(path, "/") {
 		d := current.FindDir(comp)
 		if d == nil {
 			return nil
@@ -211,8 +226,7 @@ func recursiveFindDir(root dir, path string) dir {
 }
 
 func recursiveFindFile(root dir, p string) file {
-	base := path.Dir(p)
-	d := recursiveFindDir(root, base)
+	d := recursiveFindDir(root, path.Dir(p))
 	if d == nil {
 		return nil
 	}
@@ -234,29 +248,14 @@ func NewZipFs(r io.ReaderAt, size int64) (pathfs.FileSystem, error) {
 	}
 	root := newPlainDir("")
 	for _, f := range zipr.File {
-		var file file
-		switch {
-		case strings.HasSuffix(f.Name, ".gz"):
-			file = newGzipFile(f)
-		case strings.HasSuffix(f.Name, ".xz"):
-			file = newXzFile(f)
-		case strings.HasSuffix(f.Name, ".bz2"):
-			file = newBzip2File(f)
-		default:
-			file = newPlainFile(f)
-		}
+		file := newFile(f)
 		// TODO: This probably should be done based on metadata from zip file
 		// header.
 		if f.Name[len(f.Name)-1] == '/' {
 			recursiveAddDir(root, f.Name)
 			continue
 		}
-		p := path.Dir(f.Name)
-		d := root
-		if p != "." {
-			d = recursiveAddDir(root, p)
-		}
-		d.AddFile(file)
+		recursiveAddDir(root, path.Dir(f.Name)).AddFile(file)
 	}
 	zfs := &StaticTreeFs{pathfs.NewDefaultFileSystem(), root}
 	return pathfs.NewLockingFileSystem(zfs), nil
@@ -286,14 +285,14 @@ func (fs *StaticTreeFs) OpenDir(path string, context *fuse.Context) ([]fuse.DirE
 	if d == nil {
 		return nil, fuse.ENOENT
 	}
-	tmp := make([]fuse.DirEntry, 0)
+	entries := make([]fuse.DirEntry, 0)
 	for _, f := range d.Files() {
-		tmp = append(tmp, fuse.DirEntry{Name: f.Name(), Mode: mode(true)})
+		entries = append(entries, fuse.DirEntry{Name: f.Name(), Mode: mode(true)})
 	}
 	for _, d := range d.Dirs() {
-		tmp = append(tmp, fuse.DirEntry{Name: d.Name(), Mode: mode(false)})
+		entries = append(entries, fuse.DirEntry{Name: d.Name(), Mode: mode(false)})
 	}
-	return tmp, fuse.OK
+	return entries, fuse.OK
 }
 
 // GetAttr returns attributes of path.
