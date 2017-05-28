@@ -76,6 +76,46 @@ func (fs *StaticTreeFs) Open(p string, flags uint32, context *fuse.Context) (nod
 	return nodefs.NewDataFile(b), fuse.OK
 }
 
+func (fs *StaticTreeFs) Name() string {
+	return fs.root.Name()
+}
+
+func (fs *StaticTreeFs) SetName(name string) {
+	fs.root.SetName(name)
+}
+
+func (fs *StaticTreeFs) AddEmptyDir(name string) dir {
+	return fs.root.AddEmptyDir(name)
+}
+
+func (fs *StaticTreeFs) AddFile(f file) file {
+	return fs.root.AddFile(f)
+}
+
+func (fs *StaticTreeFs) Dirs() []dir {
+	return fs.root.Dirs()
+}
+
+func (fs *StaticTreeFs) Files() []file {
+	return fs.root.Files()
+}
+
+func (fs *StaticTreeFs) SetRecursiveDir(name string, newDir dir) bool {
+	return fs.root.SetRecursiveDir(name, newDir)
+}
+
+func (fs *StaticTreeFs) AddDir(newDir dir) dir {
+	return fs.root.AddDir(newDir)
+}
+
+func (fs *StaticTreeFs) FindDir(name string) dir {
+	return fs.root.FindDir(name)
+}
+
+func (fs *StaticTreeFs) FindFile(name string) file {
+	return fs.root.FindFile(name)
+}
+
 func recursiveFindDir(root dir, path string) dir {
 	if root.Name() == path || path == "." {
 		return root

@@ -2,14 +2,18 @@ package main
 
 import (
 	"fmt"
+	"path"
 	"strings"
 )
 
 type dir interface {
+	SetName(string)
 	Name() string
 	Files() []file
 	Dirs() []dir
-	AddDir(string) dir
+	AddEmptyDir(string) dir
+	AddDir(dir) dir
+	SetRecursiveDir(string, dir) bool
 	AddFile(file) file
 	FindDir(string) dir
 	FindFile(string) file
@@ -21,6 +25,10 @@ type plainDir struct {
 	// faster lookup
 	files []file
 	dirs  []dir
+}
+
+func (d *plainDir) SetName(name string) {
+	d.name = name
 }
 
 func (d *plainDir) Name() string {
@@ -63,12 +71,33 @@ func (d *plainDir) AddFile(newFile file) file {
 	return newFile
 }
 
-func (d *plainDir) AddDir(name string) dir {
+func (d *plainDir) AddEmptyDir(name string) dir {
 	existing := d.FindDir(name)
 	if existing != nil {
 		return existing
 	}
 	newDir := newPlainDir(name)
+	d.dirs = append(d.dirs, newDir)
+	return newDir
+}
+
+func (d *plainDir) SetRecursiveDir(name string, newDir dir) bool {
+	parent := recursiveFindDir(d, path.Dir(name))
+	debugf("'%v' parent: '%v': %v", name, path.Dir(name), parent)
+	if parent == nil {
+		return false
+	}
+	for _, e := range parent.Dirs() {
+		if e.Name() == newDir.Name() {
+			return false
+		}
+	}
+	parent.AddDir(newDir)
+	debugf("'%v' parent: '%v': %v", name, path.Dir(name), parent)
+	return true
+}
+
+func (d *plainDir) AddDir(newDir dir) dir {
 	d.dirs = append(d.dirs, newDir)
 	return newDir
 }
@@ -91,7 +120,7 @@ func recursiveAddDir(root dir, path string) dir {
 		if comp == "" {
 			break
 		}
-		current = current.AddDir(comp)
+		current = current.AddEmptyDir(comp)
 	}
 	return current
 }

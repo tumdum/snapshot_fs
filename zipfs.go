@@ -2,14 +2,17 @@ package main
 
 import (
 	"archive/zip"
+	"bytes"
+	"fmt"
 	"io"
+	"io/ioutil"
 	"path"
+	"strings"
 
 	"github.com/hanwen/go-fuse/fuse/pathfs"
 )
 
-// NewZipFs returns new filesystem reading zip archive from r of size.
-func NewZipFs(r io.ReaderAt, size int64) (pathfs.FileSystem, error) {
+func NewDirFromZip(r io.ReaderAt, size int64) (dir, error) {
 	zipr, err := zip.NewReader(r, size)
 	if err != nil {
 		return nil, err
@@ -23,8 +26,47 @@ func NewZipFs(r io.ReaderAt, size int64) (pathfs.FileSystem, error) {
 			recursiveAddDir(root, f.Name)
 			continue
 		}
+		if strings.HasSuffix(f.Name, ".zip") {
+			rc, err := f.Open()
+			if err != nil {
+				return nil, err
+			}
+			defer rc.Close()
+			b, err := ioutil.ReadAll(rc)
+			if err != nil {
+				return nil, err
+			}
+			br := bytes.NewReader(b)
+			// TODO
+			fs, err := NewStaticTreeFsFromZip(br, int64(len(b)))
+			if err != nil {
+				return nil, err
+			}
+			fs.SetName(path.Base(f.Name))
+			recursiveAddDir(root, path.Dir(f.Name))
+			if !root.SetRecursiveDir(f.Name, fs) {
+				return nil, fmt.Errorf("failed to add fs under '%v'", f.Name)
+			}
+			continue
+		}
 		recursiveAddDir(root, path.Dir(f.Name)).AddFile(file)
 	}
-	zfs := &StaticTreeFs{pathfs.NewDefaultFileSystem(), root}
+	return root, nil
+}
+
+func NewStaticTreeFsFromZip(r io.ReaderAt, size int64) (*StaticTreeFs, error) {
+	root, err := NewDirFromZip(r, size)
+	if err != nil {
+		return nil, err
+	}
+	return &StaticTreeFs{pathfs.NewDefaultFileSystem(), root}, nil
+}
+
+// NewZipFs returns new filesystem reading zip archive from r of size.
+func NewZipFs(r io.ReaderAt, size int64) (pathfs.FileSystem, error) {
+	zfs, err := NewStaticTreeFsFromZip(r, size)
+	if err != nil {
+		return nil, err
+	}
 	return pathfs.NewLockingFileSystem(zfs), nil
 }

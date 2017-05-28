@@ -15,7 +15,7 @@ import (
 	"github.com/hanwen/go-fuse/fuse/pathfs"
 )
 
-func addFileToZip(w *zip.Writer, path, content string) {
+func addFileToZipBytes(w *zip.Writer, path string, content []byte) {
 	f, err := w.Create(path)
 	if err != nil {
 		panic(err)
@@ -24,7 +24,7 @@ func addFileToZip(w *zip.Writer, path, content string) {
 	if strings.HasSuffix(path, ".gz") {
 		var b bytes.Buffer
 		w := gzip.NewWriter(&b)
-		if _, err := w.Write([]byte(content)); err != nil {
+		if _, err := w.Write(content); err != nil {
 			panic(err)
 		}
 		w.Close()
@@ -35,7 +35,7 @@ func addFileToZip(w *zip.Writer, path, content string) {
 		if err != nil {
 			panic(err)
 		}
-		if _, err := w.Write([]byte(content)); err != nil {
+		if _, err := w.Write(content); err != nil {
 			panic(err)
 		}
 		w.Close()
@@ -46,17 +46,21 @@ func addFileToZip(w *zip.Writer, path, content string) {
 		if err != nil {
 			panic(err)
 		}
-		if _, err := w.Write([]byte(content)); err != nil {
+		if _, err := w.Write(content); err != nil {
 			panic(err)
 		}
 		w.Close()
 		r = &b
 	} else {
-		r = strings.NewReader(content)
+		r = bytes.NewReader(content)
 	}
 	if _, err = io.Copy(f, r); err != nil {
 		panic(err)
 	}
+}
+
+func addFileToZip(w *zip.Writer, path string, content []byte) {
+	addFileToZipBytes(w, path, []byte(content))
 }
 
 func verifyStatus(path string, s fuse.Status, t *testing.T) {
@@ -66,6 +70,19 @@ func verifyStatus(path string, s fuse.Status, t *testing.T) {
 }
 
 func makeZipFile(files map[string]string) []byte {
+	var b bytes.Buffer
+	w := zip.NewWriter(&b)
+
+	for path, content := range files {
+		addFileToZip(w, path, []byte(content))
+	}
+
+	w.Flush()
+	w.Close()
+	return b.Bytes()
+}
+
+func makeZipFileBytes(files map[string][]byte) []byte {
 	var b bytes.Buffer
 	w := zip.NewWriter(&b)
 
@@ -92,6 +109,10 @@ var (
 		"g/h/i/l": "m",
 		"g/h/n":   "o",
 		"g/hp":    "r",
+	}
+	multiLevelWithZip = map[string][]byte{
+		"a/d.zip": makeZipFile(multiLevel),
+		"e":       []byte("f"),
 	}
 	multiLevelWithDirs = map[string]string{
 		"a/":  "",
@@ -327,6 +348,17 @@ func TestZipFsGetAttrNok(t *testing.T) {
 	if status.Ok() {
 		t.Fatalf("Ok status returned for not existing path")
 	}
+}
+
+func TestZipFsGetAttrOfZip(t *testing.T) {
+	fs := MustNewZipFs(makeZipFileBytes(multiLevelWithZip))
+	attr, status := fs.GetAttr("a/d.zip", &fuse.Context{})
+	verifyStatus("a/d.zip", status, t)
+	if attr.Mode&fuse.S_IFDIR == 0 {
+		t.Fatalf("'a/d.zip' should be dir, but is not")
+	}
+	_, status = fs.GetAttr("a/d.zip/b", &fuse.Context{})
+	verifyStatus("a/d.zip/b", status, t)
 }
 
 func verifyDirName(d dir, name string, t *testing.T) {
