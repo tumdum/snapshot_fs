@@ -185,6 +185,9 @@ func recursiveAddDir(root dir, path string) dir {
 	comps := strings.Split(path, "/")
 	current := root
 	for _, comp := range comps {
+		if comp == "" {
+			break
+		}
 		current = current.AddDir(comp)
 	}
 	return current
@@ -242,13 +245,18 @@ func NewZipFs(r io.ReaderAt, size int64) (pathfs.FileSystem, error) {
 		default:
 			file = newPlainFile(f)
 		}
-		p := path.Dir(f.Name)
-		if p != "." {
-			d := recursiveAddDir(root, p)
-			d.AddFile(file)
-		} else {
-			root.AddFile(file)
+		// TODO: This probably should be done based on metadata from zip file
+		// header.
+		if f.Name[len(f.Name)-1] == '/' {
+			recursiveAddDir(root, f.Name)
+			continue
 		}
+		p := path.Dir(f.Name)
+		d := root
+		if p != "." {
+			d = recursiveAddDir(root, p)
+		}
+		d.AddFile(file)
 	}
 	zfs := &StaticTreeFs{pathfs.NewDefaultFileSystem(), root}
 	return pathfs.NewLockingFileSystem(zfs), nil
@@ -285,7 +293,6 @@ func (fs *StaticTreeFs) OpenDir(path string, context *fuse.Context) ([]fuse.DirE
 	for _, d := range d.Dirs() {
 		tmp = append(tmp, fuse.DirEntry{Name: d.Name(), Mode: mode(false)})
 	}
-	debugf("root: %v", fs.root)
 	return tmp, fuse.OK
 }
 

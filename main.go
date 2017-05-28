@@ -58,5 +58,6 @@ func main() {
 	}()
 
 	server.SetDebug(*vverbose)
+	log.Println("Serving")
 	server.Serve()
 }

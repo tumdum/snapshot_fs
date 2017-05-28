@@ -93,6 +93,10 @@ var (
 		"g/h/n":   "o",
 		"g/hp":    "r",
 	}
+	multiLevelWithDirs = map[string]string{
+		"a/":  "",
+		"a/b": "c",
+	}
 	withGziped = map[string]string{
 		"a":         "b",
 		"c.gz":      "dddddddddddddddddddddddddddddddddddddddddddddddddddddd",
@@ -245,6 +249,16 @@ func TestZipFsOpenDirModeMultiLevel(t *testing.T) {
 		} else if !isFile && (entry.Mode&fuse.S_IFDIR == 0) {
 			t.Fatalf("Dir '%v' is not a dir", entry.Name)
 		}
+	}
+}
+
+func TestZipFsOpenDirWithExplicitDirs(t *testing.T) {
+	fs := MustNewZipFs(makeZipFile(multiLevelWithDirs))
+	expected := map[string]struct{}{"b": struct{}{}}
+	entries, status := fs.OpenDir("a", &fuse.Context{})
+	verifyStatus("a", status, t)
+	if len(expected) != len(entries) {
+		t.Fatalf("Expected %d entries, got %d: %v vs %v", len(expected), len(entries), expected, entries)
 	}
 }
 
