@@ -77,7 +77,11 @@ func (f *compressedFile) ReadCloser() (io.ReadCloser, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &readcloser{r.Close, r}, nil
+	d, err := f.decompressor(r)
+	if err != nil {
+		return nil, err
+	}
+	return &readcloser{r.Close, d}, nil
 }
 
 func (f *compressedFile) Bytes() ([]byte, error) {
@@ -86,11 +90,7 @@ func (f *compressedFile) Bytes() ([]byte, error) {
 		return nil, err
 	}
 	defer rc.Close()
-	d, err := f.decompressor(rc)
-	if err != nil {
-		return nil, err
-	}
-	return ioutil.ReadAll(d)
+	return ioutil.ReadAll(rc)
 }
 
 func (f *compressedFile) Size() (uint64, error) {
