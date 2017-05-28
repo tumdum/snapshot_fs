@@ -8,7 +8,7 @@ import (
 func mustDirFromZip(m map[string][]byte) dir {
 	b := makeZipFileBytes(m)
 	r := bytes.NewReader(b)
-	d, err := NewDirFromZip(r, int64(len(b)))
+	d, err := newDirFromZip(r, int64(len(b)))
 	if err != nil {
 		panic(err)
 	}
@@ -17,7 +17,7 @@ func mustDirFromZip(m map[string][]byte) dir {
 
 func TestXXX(t *testing.T) {
 	root := mustDirFromZip(multiLevelWithZip)
-	dirs := root.Dirs()
+	dirs := root.dirs()
 	expectedDirs := map[string]struct{}{
 		"a": {},
 	}
@@ -32,9 +32,9 @@ func TestXXX(t *testing.T) {
 	if f == nil {
 		t.Fatalf("Failed to get 'a/d.zip/g/h/i/j' file")
 	}
-	b, err := f.Bytes()
+	b, err := f.bytes()
 	if err != nil {
-		t.Fatalf("Failed to open '%v': %v", f.Name(), err)
+		t.Fatalf("Failed to open '%v': %v", f.name(), err)
 	}
 	if string(b) != "k" {
 		t.Fatalf("Incorrect content, expected \"k\", got '%v'", string(b))

@@ -14,30 +14,30 @@ import (
 )
 
 type file interface {
-	Name() string
-	Size() (uint64, error)
-	ReadCloser() (io.ReadCloser, error)
-	Bytes() ([]byte, error)
+	name() string
+	size() (uint64, error)
+	readCloser() (io.ReadCloser, error)
+	bytes() ([]byte, error)
 }
 
 type plainFile struct {
 	z *zip.File
 }
 
-func (f *plainFile) Name() string {
+func (f *plainFile) name() string {
 	return path.Base(f.z.Name)
 }
 
-func (f *plainFile) Size() (uint64, error) {
+func (f *plainFile) size() (uint64, error) {
 	return f.z.UncompressedSize64, nil
 }
 
-func (f *plainFile) ReadCloser() (io.ReadCloser, error) {
+func (f *plainFile) readCloser() (io.ReadCloser, error) {
 	return f.z.Open()
 }
 
-func (f *plainFile) Bytes() ([]byte, error) {
-	r, err := f.ReadCloser()
+func (f *plainFile) bytes() ([]byte, error) {
+	r, err := f.readCloser()
 	if err != nil {
 		return nil, err
 	}
@@ -46,17 +46,17 @@ func (f *plainFile) Bytes() ([]byte, error) {
 }
 
 func (f *plainFile) String() string {
-	return f.Name()
+	return f.name()
 }
 
 type compressedFile struct {
 	file
 	decompressor func(io.Reader) (io.Reader, error)
-	size         uint64
+	s            uint64
 }
 
-func (f *compressedFile) Name() string {
-	return f.file.Name()
+func (f *compressedFile) name() string {
+	return f.file.name()
 }
 
 type readcloser struct {
@@ -72,8 +72,8 @@ func (r *readcloser) Read(b []byte) (int, error) {
 	return r.r.Read(b)
 }
 
-func (f *compressedFile) ReadCloser() (io.ReadCloser, error) {
-	r, err := f.file.ReadCloser()
+func (f *compressedFile) readCloser() (io.ReadCloser, error) {
+	r, err := f.file.readCloser()
 	if err != nil {
 		return nil, err
 	}
@@ -84,8 +84,8 @@ func (f *compressedFile) ReadCloser() (io.ReadCloser, error) {
 	return &readcloser{r.Close, d}, nil
 }
 
-func (f *compressedFile) Bytes() ([]byte, error) {
-	rc, err := f.ReadCloser()
+func (f *compressedFile) bytes() ([]byte, error) {
+	rc, err := f.readCloser()
 	if err != nil {
 		return nil, err
 	}
@@ -93,11 +93,11 @@ func (f *compressedFile) Bytes() ([]byte, error) {
 	return ioutil.ReadAll(rc)
 }
 
-func (f *compressedFile) Size() (uint64, error) {
-	if f.size != math.MaxUint64 {
-		return f.size, nil
+func (f *compressedFile) size() (uint64, error) {
+	if f.s != math.MaxUint64 {
+		return f.s, nil
 	}
-	b, err := f.Bytes()
+	b, err := f.bytes()
 	if err != nil {
 		return 0, err
 	}
@@ -105,7 +105,7 @@ func (f *compressedFile) Size() (uint64, error) {
 }
 
 func (f *compressedFile) String() string {
-	return f.Name()
+	return f.name()
 }
 
 func newPlainFile(z *zip.File) *plainFile {

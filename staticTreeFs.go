@@ -25,7 +25,7 @@ func (fs *StaticTreeFs) fileSize(p string) (uint64, bool) {
 	if f == nil {
 		return 0, false
 	}
-	s, err := f.Size()
+	s, err := f.size()
 	if err != nil {
 		debugf("file size failed for '%v': %v", p, err)
 		return 0, false
@@ -41,11 +41,11 @@ func (fs *StaticTreeFs) OpenDir(path string, context *fuse.Context) ([]fuse.DirE
 		return nil, fuse.ENOENT
 	}
 	entries := make([]fuse.DirEntry, 0)
-	for _, f := range d.Files() {
-		entries = append(entries, fuse.DirEntry{Name: f.Name(), Mode: mode(true)})
+	for _, f := range d.files() {
+		entries = append(entries, fuse.DirEntry{Name: f.name(), Mode: mode(true)})
 	}
-	for _, d := range d.Dirs() {
-		entries = append(entries, fuse.DirEntry{Name: d.Name(), Mode: mode(false)})
+	for _, d := range d.dirs() {
+		entries = append(entries, fuse.DirEntry{Name: d.name(), Mode: mode(false)})
 	}
 	return entries, fuse.OK
 }
@@ -68,7 +68,7 @@ func (fs *StaticTreeFs) Open(p string, flags uint32, context *fuse.Context) (nod
 	if f == nil {
 		return nil, fuse.ENOENT
 	}
-	b, err := f.Bytes()
+	b, err := f.bytes()
 	if err != nil {
 		debugf("open '%v' failed: %v", p, err)
 		return nil, fuse.EIO
@@ -76,54 +76,54 @@ func (fs *StaticTreeFs) Open(p string, flags uint32, context *fuse.Context) (nod
 	return nodefs.NewDataFile(b), fuse.OK
 }
 
-func (fs *StaticTreeFs) Name() string {
-	return fs.root.Name()
+func (fs *StaticTreeFs) name() string {
+	return fs.root.name()
 }
 
-func (fs *StaticTreeFs) SetName(name string) {
-	fs.root.SetName(name)
+func (fs *StaticTreeFs) setName(name string) {
+	fs.root.setName(name)
 }
 
-func (fs *StaticTreeFs) AddEmptyDir(name string) dir {
-	return fs.root.AddEmptyDir(name)
+func (fs *StaticTreeFs) addEmptyDir(name string) dir {
+	return fs.root.addEmptyDir(name)
 }
 
-func (fs *StaticTreeFs) AddFile(f file) file {
-	return fs.root.AddFile(f)
+func (fs *StaticTreeFs) addFile(f file) file {
+	return fs.root.addFile(f)
 }
 
-func (fs *StaticTreeFs) Dirs() []dir {
-	return fs.root.Dirs()
+func (fs *StaticTreeFs) dirs() []dir {
+	return fs.root.dirs()
 }
 
-func (fs *StaticTreeFs) Files() []file {
-	return fs.root.Files()
+func (fs *StaticTreeFs) files() []file {
+	return fs.root.files()
 }
 
-func (fs *StaticTreeFs) SetRecursiveDir(name string, newDir dir) bool {
-	return fs.root.SetRecursiveDir(name, newDir)
+func (fs *StaticTreeFs) setRecursiveDir(name string, newDir dir) bool {
+	return fs.root.setRecursiveDir(name, newDir)
 }
 
-func (fs *StaticTreeFs) AddDir(newDir dir) dir {
-	return fs.root.AddDir(newDir)
+func (fs *StaticTreeFs) addDir(newDir dir) dir {
+	return fs.root.addDir(newDir)
 }
 
-func (fs *StaticTreeFs) FindDir(name string) dir {
-	return fs.root.FindDir(name)
+func (fs *StaticTreeFs) findDir(name string) dir {
+	return fs.root.findDir(name)
 }
 
-func (fs *StaticTreeFs) FindFile(name string) file {
-	return fs.root.FindFile(name)
+func (fs *StaticTreeFs) findFile(name string) file {
+	return fs.root.findFile(name)
 }
 
 func recursiveFindDir(root dir, path string) dir {
-	if root.Name() == path || path == "." {
+	if root.name() == path || path == "." {
 		return root
 	}
 
 	current := root
 	for _, comp := range strings.Split(path, "/") {
-		d := current.FindDir(comp)
+		d := current.findDir(comp)
 		if d == nil {
 			return nil
 		}
@@ -137,7 +137,7 @@ func recursiveFindFile(root dir, p string) file {
 	if d == nil {
 		return nil
 	}
-	return d.FindFile(path.Base(p))
+	return d.findFile(path.Base(p))
 }
 
 func mode(isFile bool) uint32 {

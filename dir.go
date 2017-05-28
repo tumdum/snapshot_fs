@@ -7,103 +7,103 @@ import (
 )
 
 type dir interface {
-	SetName(string)
-	Name() string
-	Files() []file
-	Dirs() []dir
-	AddEmptyDir(string) dir
-	AddDir(dir) dir
-	SetRecursiveDir(string, dir) bool
-	AddFile(file) file
-	FindDir(string) dir
-	FindFile(string) file
+	setName(string)
+	name() string
+	files() []file
+	dirs() []dir
+	addEmptyDir(string) dir
+	addDir(dir) dir
+	setRecursiveDir(string, dir) bool
+	addFile(file) file
+	findDir(string) dir
+	findFile(string) file
 }
 
 type plainDir struct {
-	name string
+	n string
 	// NOTE: it could be good idea to change this to map[string]{file,dir} for
 	// faster lookup
-	files []file
-	dirs  []dir
+	f []file
+	d []dir
 }
 
-func (d *plainDir) SetName(name string) {
-	d.name = name
+func (d *plainDir) setName(name string) {
+	d.n = name
 }
 
-func (d *plainDir) Name() string {
-	return d.name
+func (d *plainDir) name() string {
+	return d.n
 }
 
-func (d *plainDir) Files() []file {
-	return d.files
+func (d *plainDir) files() []file {
+	return d.f
 }
 
-func (d *plainDir) Dirs() []dir {
-	return d.dirs
+func (d *plainDir) dirs() []dir {
+	return d.d
 }
 
-func (d *plainDir) FindDir(name string) dir {
-	for _, dir := range d.dirs {
-		if dir.Name() == name {
+func (d *plainDir) findDir(name string) dir {
+	for _, dir := range d.d {
+		if dir.name() == name {
 			return dir
 		}
 	}
 	return nil
 }
 
-func (d *plainDir) FindFile(name string) file {
-	for _, file := range d.files {
-		if file.Name() == name {
+func (d *plainDir) findFile(name string) file {
+	for _, file := range d.f {
+		if file.name() == name {
 			return file
 		}
 	}
 	return nil
 }
 
-func (d *plainDir) AddFile(newFile file) file {
-	for _, f := range d.files {
-		if f.Name() == newFile.Name() {
+func (d *plainDir) addFile(newFile file) file {
+	for _, f := range d.f {
+		if f.name() == newFile.name() {
 			return f
 		}
 	}
-	d.files = append(d.files, newFile)
+	d.f = append(d.f, newFile)
 	return newFile
 }
 
-func (d *plainDir) AddEmptyDir(name string) dir {
-	existing := d.FindDir(name)
+func (d *plainDir) addEmptyDir(name string) dir {
+	existing := d.findDir(name)
 	if existing != nil {
 		return existing
 	}
 	newDir := newPlainDir(name)
-	d.dirs = append(d.dirs, newDir)
+	d.d = append(d.d, newDir)
 	return newDir
 }
 
-func (d *plainDir) SetRecursiveDir(name string, newDir dir) bool {
+func (d *plainDir) setRecursiveDir(name string, newDir dir) bool {
 	parent := recursiveFindDir(d, path.Dir(name))
 	debugf("'%v' parent: '%v': %v", name, path.Dir(name), parent)
 	if parent == nil {
 		return false
 	}
-	for _, e := range parent.Dirs() {
-		if e.Name() == newDir.Name() {
+	for _, e := range parent.dirs() {
+		if e.name() == newDir.name() {
 			return false
 		}
 	}
-	parent.AddDir(newDir)
+	parent.addDir(newDir)
 	debugf("'%v' parent: '%v': %v", name, path.Dir(name), parent)
 	return true
 }
 
-func (d *plainDir) AddDir(newDir dir) dir {
-	d.dirs = append(d.dirs, newDir)
+func (d *plainDir) addDir(newDir dir) dir {
+	d.d = append(d.d, newDir)
 	return newDir
 }
 
 func (d *plainDir) String() string {
-	return fmt.Sprintf("{dir name: '%s', files: '%v', dirs: '%v'}", d.Name(), d.files, d.dirs)
+	return fmt.Sprintf("{dir name: '%s', files: '%v', dirs: '%v'}", d.name(), d.f, d.d)
 }
 
 func newPlainDir(name string) dir {
@@ -120,7 +120,7 @@ func recursiveAddDir(root dir, path string) dir {
 		if comp == "" {
 			break
 		}
-		current = current.AddEmptyDir(comp)
+		current = current.addEmptyDir(comp)
 	}
 	return current
 }

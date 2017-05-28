@@ -362,8 +362,8 @@ func TestZipFsGetAttrOfZip(t *testing.T) {
 }
 
 func verifyDirName(d dir, name string, t *testing.T) {
-	if d.Name() != name {
-		t.Fatalf("Expected name '%v', got '%v'", name, d.Name())
+	if d.name() != name {
+		t.Fatalf("Expected name '%v', got '%v'", name, d.name())
 	}
 }
 
@@ -372,15 +372,15 @@ func TestAddDir(t *testing.T) {
 	ret := recursiveAddDir(root, "foo/bar/baz")
 	verifyDirName(ret, "baz", t)
 
-	foo := root.FindDir("foo")
+	foo := root.findDir("foo")
 	verifyDirName(foo, "foo", t)
 	verifyDirName(recursiveFindDir(root, "foo"), "foo", t)
 
-	bar := foo.FindDir("bar")
+	bar := foo.findDir("bar")
 	verifyDirName(bar, "bar", t)
 	verifyDirName(recursiveFindDir(root, "foo/bar"), "bar", t)
 
-	baz := bar.FindDir("baz")
+	baz := bar.findDir("baz")
 	verifyDirName(baz, "baz", t)
 	verifyDirName(recursiveFindDir(root, "foo/bar/baz"), "baz", t)
 }
