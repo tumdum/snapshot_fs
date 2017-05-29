@@ -32,7 +32,7 @@ func TestXXX(t *testing.T) {
 	if f == nil {
 		t.Fatalf("Failed to get 'a/d.zip/g/h/i/j' file")
 	}
-	b, err := f.bytes()
+	b, err := allBytes(f)
 	if err != nil {
 		t.Fatalf("Failed to open '%v': %v", f.name(), err)
 	}

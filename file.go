@@ -17,7 +17,15 @@ type file interface {
 	name() string
 	size() (uint64, error)
 	readCloser() (io.ReadCloser, error)
-	bytes() ([]byte, error)
+}
+
+func allBytes(f file) ([]byte, error) {
+	rc, err := f.readCloser()
+	if err != nil {
+		return nil, err
+	}
+	defer rc.Close()
+	return ioutil.ReadAll(rc)
 }
 
 type plainFile struct {
@@ -34,15 +42,6 @@ func (f *plainFile) size() (uint64, error) {
 
 func (f *plainFile) readCloser() (io.ReadCloser, error) {
 	return f.z.Open()
-}
-
-func (f *plainFile) bytes() ([]byte, error) {
-	r, err := f.readCloser()
-	if err != nil {
-		return nil, err
-	}
-	defer r.Close()
-	return ioutil.ReadAll(r)
 }
 
 func (f *plainFile) String() string {
@@ -84,20 +83,11 @@ func (f *compressedFile) readCloser() (io.ReadCloser, error) {
 	return &readcloser{r.Close, d}, nil
 }
 
-func (f *compressedFile) bytes() ([]byte, error) {
-	rc, err := f.readCloser()
-	if err != nil {
-		return nil, err
-	}
-	defer rc.Close()
-	return ioutil.ReadAll(rc)
-}
-
 func (f *compressedFile) size() (uint64, error) {
 	if f.s != math.MaxUint64 {
 		return f.s, nil
 	}
-	b, err := f.bytes()
+	b, err := allBytes(f)
 	if err != nil {
 		return 0, err
 	}

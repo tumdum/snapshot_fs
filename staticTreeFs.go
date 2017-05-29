@@ -68,7 +68,7 @@ func (fs *StaticTreeFs) Open(p string, flags uint32, context *fuse.Context) (nod
 	if f == nil {
 		return nil, fuse.ENOENT
 	}
-	b, err := f.bytes()
+	b, err := allBytes(f)
 	if err != nil {
 		debugf("open '%v' failed: %v", p, err)
 		return nil, fuse.EIO

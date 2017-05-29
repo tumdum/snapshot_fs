@@ -65,4 +65,3 @@ type tarfile struct {
 func (f *tarfile) name() string                       { return path.Base(f.h.Name) }
 func (f *tarfile) size() (uint64, error)              { return 0, nil }
 func (f *tarfile) readCloser() (io.ReadCloser, error) { return nil, nil }
-func (f *tarfile) bytes() ([]byte, error)             { return nil, nil }
