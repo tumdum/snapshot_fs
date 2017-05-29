@@ -322,6 +322,31 @@ func TestZipFsOpenOk(t *testing.T) {
 	}
 }
 
+func TestZipFsOpenMalformedCompressed(t *testing.T) {
+	files := map[string][]byte{
+		"foo.gz": []byte("malformed"),
+	}
+	var b bytes.Buffer
+	w := zip.NewWriter(&b)
+	for path, content := range files {
+		f, err := w.Create(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		r := bytes.NewReader(content)
+		if _, err = io.Copy(f, r); err != nil {
+			t.Fatal(err)
+		}
+	}
+	w.Flush()
+	w.Close()
+	fs := MustNewZipFs(b.Bytes())
+	_, status := fs.Open("foo.gz", 0, &fuse.Context{})
+	if status.Ok() {
+		t.Fatalf("Opening malformed gz file did not fail")
+	}
+}
+
 func TestZipFsGetAttrOk(t *testing.T) {
 	for _, config := range []map[string]string{multiLevel, withGziped, withXziped, withBziped} {
 		fs := MustNewZipFs(makeZipFile(config))
