@@ -99,3 +99,19 @@ func TestTarFsFilesAndDirs(t *testing.T) {
 		}
 	}
 }
+
+func TestTarFsAllBytes(t *testing.T) {
+	dir := MustNewTarFs(makeTarFile(multiLevel))
+	for path, expected := range multiLevel {
+		f := recursiveFindFile(dir, path)
+		if f == nil {
+			t.Fatalf("Did not find expected file '%v'", path)
+		}
+		content, err := allBytes(f)
+		if err != nil {
+			t.Fatalf("Failed to read '%v': %v", path, err)
+		}
+		if bytes.Compare(expected, content) != 0 {
+		}
+	}
+}

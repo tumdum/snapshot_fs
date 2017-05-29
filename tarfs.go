@@ -2,6 +2,8 @@ package main
 
 import (
 	"archive/tar"
+	"bytes"
+	"fmt"
 	"io"
 	"path"
 )
@@ -40,7 +42,7 @@ func (t *tarfs) findFile(name string) file {
 	return t.root.findFile(name)
 }
 
-func NewTarFs(r io.Reader) (dir, error) {
+func NewTarFs(r io.ReadSeeker) (dir, error) {
 	root := new(plainDir)
 	tr := tar.NewReader(r)
 	for {
@@ -53,15 +55,45 @@ func NewTarFs(r io.Reader) (dir, error) {
 		}
 		base := path.Dir(h.Name)
 		d := recursiveAddDir(root, base)
-		d.addFile(&tarfile{h})
+		// NOTE: this can't be concurrent if same reedseeker will be move
+		// back to begining at each readCloser call.
+		d.addFile(&tarfile{h, r})
 	}
 	return &tarfs{root}, nil
 }
 
 type tarfile struct {
 	h *tar.Header
+	r io.ReadSeeker
 }
 
-func (f *tarfile) name() string                       { return path.Base(f.h.Name) }
-func (f *tarfile) size() (uint64, error)              { return 0, nil }
-func (f *tarfile) readCloser() (io.ReadCloser, error) { return nil, nil }
+type dummycloser struct {
+	io.Reader
+}
+
+func (_ dummycloser) Close() error { return nil }
+
+func (f *tarfile) name() string          { return path.Base(f.h.Name) }
+func (f *tarfile) size() (uint64, error) { return 0, nil }
+func (f *tarfile) readCloser() (io.ReadCloser, error) {
+	_, err := f.r.Seek(0, io.SeekStart)
+	if err != nil {
+		return nil, fmt.Errorf("failed to seek: %v", err)
+	}
+	tr := tar.NewReader(f.r)
+	for {
+		h, err := tr.Next()
+		if err != nil {
+			return nil, err
+		}
+		if h.Name != f.h.Name {
+			continue
+		}
+		var b bytes.Buffer
+		n, err := io.Copy(&b, tr)
+		if n != h.Size {
+			return nil, err
+		}
+		return dummycloser{&b}, nil
+	}
+}
