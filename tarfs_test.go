@@ -58,7 +58,7 @@ func TestTarFsOnEmpty(t *testing.T) {
 	}
 }
 
-func TestXX(t *testing.T) {
+func TestTarFsFilesAndDirs(t *testing.T) {
 	fs := MustNewTarFs(makeTarFile(multiLevel))
 	expected := map[string]struct{}{
 		"a": {},
