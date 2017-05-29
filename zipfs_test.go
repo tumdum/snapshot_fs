@@ -322,7 +322,7 @@ func TestZipFsOpenOk(t *testing.T) {
 	}
 }
 
-func TestZipFsOpenMalformedCompressed(t *testing.T) {
+func TestZipFsAccessingMalformedCompressed(t *testing.T) {
 	files := map[string][]byte{
 		"foo.gz": []byte("malformed"),
 	}
@@ -344,6 +344,10 @@ func TestZipFsOpenMalformedCompressed(t *testing.T) {
 	_, status := fs.Open("foo.gz", 0, &fuse.Context{})
 	if status.Ok() {
 		t.Fatalf("Opening malformed gz file did not fail")
+	}
+	_, status = fs.GetAttr("foo.gz", &fuse.Context{})
+	if status.Ok() {
+		t.Fatalf("GetAttr malformed gz file did not fail")
 	}
 }
 
