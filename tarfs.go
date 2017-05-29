@@ -73,8 +73,12 @@ type dummycloser struct {
 
 func (_ dummycloser) Close() error { return nil }
 
-func (f *tarfile) name() string          { return path.Base(f.h.Name) }
-func (f *tarfile) size() (uint64, error) { return 0, nil }
+func (f *tarfile) name() string {
+	return path.Base(f.h.Name)
+}
+func (f *tarfile) size() (uint64, error) {
+	return uint64(f.h.Size), nil
+}
 func (f *tarfile) readCloser() (io.ReadCloser, error) {
 	_, err := f.r.Seek(0, io.SeekStart)
 	if err != nil {

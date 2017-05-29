@@ -112,6 +112,22 @@ func TestTarFsAllBytes(t *testing.T) {
 			t.Fatalf("Failed to read '%v': %v", path, err)
 		}
 		if bytes.Compare(expected, content) != 0 {
+			t.Fatalf("expected content '%v', got '%v'", expected, content)
+		}
+	}
+}
+
+func TestTarFsSize(t *testing.T) {
+	dir := MustNewTarFs(makeTarFile(multiLevel))
+	for path, expected := range multiLevel {
+		f := recursiveFindFile(dir, path)
+		if f == nil {
+			t.Fatalf("Did not find expected file '%v'", path)
+		}
+		if got, err := f.size(); err != nil {
+			t.Fatalf("Failed to get size: %v", err)
+		} else if len(expected) != int(got) {
+			t.Fatalf("For '%v' expected size %d, got %d", path, len(expected), got)
 		}
 	}
 }
