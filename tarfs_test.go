@@ -16,11 +16,21 @@ func makeTarFile(m map[string][]byte) []byte {
 			Mode: 0755,
 			Size: int64(len(content)),
 		}
+
+		isDir := string(content) == "dir"
+		if isDir {
+			header.Typeflag = tar.TypeDir
+			header.Size = 0
+		}
+
 		if err := tw.WriteHeader(&header); err != nil {
 			panic(err)
 		}
-		if _, err := tw.Write(content); err != nil {
-			panic(err)
+
+		if !isDir {
+			if _, err := tw.Write(content); err != nil {
+				panic(err)
+			}
 		}
 	}
 
@@ -129,5 +139,26 @@ func TestTarFsSize(t *testing.T) {
 		} else if len(expected) != int(got) {
 			t.Fatalf("For '%v' expected size %d, got %d", path, len(expected), got)
 		}
+	}
+}
+
+func TestTarDirs(t *testing.T) {
+	dir := MustNewDirFromTar(makeTarFile(multiLevelWithDirs))
+	expected := map[string]struct{}{
+		"a": {},
+		"d": {},
+	}
+	dirs := dir.dirs()
+	if len(dirs) != len(expected) {
+		t.Fatalf("Expected %d dirs, got %d: %v vs %v", len(expected), len(dirs), expected, dirs)
+	}
+	for _, d := range dirs {
+		if _, ok := expected[d.name()]; !ok {
+			t.Fatalf("Unexpected dir '%v'", d.name())
+		}
+	}
+	files := dir.files()
+	if len(files) > 0 {
+		t.Fatalf("Unexpected files: '%v'", files)
 	}
 }

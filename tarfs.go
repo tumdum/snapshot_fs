@@ -71,7 +71,11 @@ func newDirFromTar(r io.ReadSeeker) (dir, error) {
 		d := recursiveAddDir(root, base)
 		// NOTE: this can't be concurrent if same reedseeker will be move
 		// back to begining at each readCloser call.
-		d.addFile(&tarfile{h, r})
+		if h.Typeflag == tar.TypeDir {
+			d.addEmptyDir(path.Base(h.Name))
+		} else {
+			d.addFile(&tarfile{h, r})
+		}
 	}
 	return &tarfs{root}, nil
 }

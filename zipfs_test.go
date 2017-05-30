@@ -114,9 +114,10 @@ var (
 		"a/d.zip": makeZipFileBytes(multiLevel),
 		"e":       []byte("f"),
 	}
-	multiLevelWithDirs = map[string]string{
-		"a/":  "",
-		"a/b": "c",
+	multiLevelWithDirs = map[string][]byte{
+		"a/":  nil,
+		"a/b": []byte("c"),
+		"d":   []byte("dir"),
 	}
 	withGziped = map[string]string{
 		"a":         "b",
@@ -274,7 +275,7 @@ func TestZipFsOpenDirModeMultiLevel(t *testing.T) {
 }
 
 func TestZipFsOpenDirWithExplicitDirs(t *testing.T) {
-	fs := MustNewZipFs(makeZipFile(multiLevelWithDirs))
+	fs := MustNewZipFs(makeZipFileBytes(multiLevelWithDirs))
 	expected := map[string]struct{}{"b": {}}
 	entries, status := fs.OpenDir("a", &fuse.Context{})
 	verifyStatus("a", status, t)
