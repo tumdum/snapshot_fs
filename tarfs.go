@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"path"
+	"sync"
 
 	"github.com/hanwen/go-fuse/fuse/pathfs"
 )
@@ -55,6 +56,7 @@ func (t *tarfs) findFile(name string) file {
 }
 
 func newDirFromTar(r io.ReadSeeker) (dir, error) {
+	m := new(sync.Mutex)
 	root := new(plainDir)
 	tr := tar.NewReader(r)
 	for {
@@ -74,7 +76,7 @@ func newDirFromTar(r io.ReadSeeker) (dir, error) {
 		if h.Typeflag == tar.TypeDir {
 			d.addEmptyDir(path.Base(h.Name))
 		} else {
-			d.addFile(&tarfile{h, r})
+			d.addFile(&tarfile{h, r, m})
 		}
 	}
 	return &tarfs{root}, nil
@@ -99,6 +101,7 @@ func NewTarFs(r io.ReadSeeker) (pathfs.FileSystem, error) {
 type tarfile struct {
 	h *tar.Header
 	r io.ReadSeeker
+	m *sync.Mutex
 }
 
 type dummycloser struct {
@@ -116,6 +119,9 @@ func (f *tarfile) size() (uint64, error) {
 }
 
 func (f *tarfile) readCloser() (io.ReadCloser, error) {
+	f.m.Lock()
+	defer f.m.Unlock()
+
 	_, err := f.r.Seek(0, io.SeekStart)
 	if err != nil {
 		return nil, fmt.Errorf("failed to seek: %v", err)
