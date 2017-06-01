@@ -43,9 +43,9 @@ func makeTarFile(m map[string][]byte) []byte {
 	return b.Bytes()
 }
 
-func MustNewDirFromTar(b []byte) dir {
+func MustNewDirFromTar(b []byte, inMemory bool) dir {
 	r := bytes.NewReader(b)
-	d, err := newDirFromTar(r)
+	d, err := newDirFromTar(r, inMemory)
 	if err != nil {
 		panic(err)
 	}
@@ -53,7 +53,7 @@ func MustNewDirFromTar(b []byte) dir {
 }
 
 func TestTarFsOnEmpty(t *testing.T) {
-	fs := MustNewDirFromTar(makeTarFile(nil))
+	fs := MustNewDirFromTar(makeTarFile(nil), false)
 	if dirs := fs.dirs(); len(dirs) != 0 {
 		t.Fatalf("expected no dirs, found: '%v'", dirs)
 	}
@@ -69,7 +69,7 @@ func TestTarFsOnEmpty(t *testing.T) {
 }
 
 func TestTarFsFilesAndDirs(t *testing.T) {
-	fs := MustNewDirFromTar(makeTarFile(multiLevel))
+	fs := MustNewDirFromTar(makeTarFile(multiLevel), false)
 	expected := map[string]struct{}{
 		"a": {},
 		"g": {},
@@ -111,24 +111,26 @@ func TestTarFsFilesAndDirs(t *testing.T) {
 }
 
 func TestTarFsAllBytes(t *testing.T) {
-	dir := MustNewDirFromTar(makeTarFile(multiLevel))
-	for path, expected := range multiLevel {
-		f := recursiveFindFile(dir, path)
-		if f == nil {
-			t.Fatalf("Did not find expected file '%v'", path)
-		}
-		content, err := allBytes(f)
-		if err != nil {
-			t.Fatalf("Failed to read '%v': %v", path, err)
-		}
-		if bytes.Compare(expected, content) != 0 {
-			t.Fatalf("expected content '%v', got '%v'", expected, content)
+	for _, inMemory := range []bool{true, false} {
+		dir := MustNewDirFromTar(makeTarFile(multiLevel), inMemory)
+		for path, expected := range multiLevel {
+			f := recursiveFindFile(dir, path)
+			if f == nil {
+				t.Fatalf("Did not find expected file '%v'", path)
+			}
+			content, err := allBytes(f)
+			if err != nil {
+				t.Fatalf("Failed to read '%v': %v", path, err)
+			}
+			if bytes.Compare(expected, content) != 0 {
+				t.Fatalf("expected content '%v', got '%v'", expected, content)
+			}
 		}
 	}
 }
 
 func TestTarFsSize(t *testing.T) {
-	dir := MustNewDirFromTar(makeTarFile(multiLevel))
+	dir := MustNewDirFromTar(makeTarFile(multiLevel), false)
 	for path, expected := range multiLevel {
 		f := recursiveFindFile(dir, path)
 		if f == nil {
@@ -143,7 +145,7 @@ func TestTarFsSize(t *testing.T) {
 }
 
 func TestTarDirs(t *testing.T) {
-	dir := MustNewDirFromTar(makeTarFile(multiLevelWithDirs))
+	dir := MustNewDirFromTar(makeTarFile(multiLevelWithDirs), false)
 	expected := map[string]struct{}{
 		"a": {},
 		"d": {},

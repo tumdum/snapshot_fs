@@ -55,7 +55,7 @@ func (t *tarfs) findFile(name string) file {
 	return t.root.findFile(name)
 }
 
-func newDirFromTar(r io.ReadSeeker) (dir, error) {
+func newDirFromTar(r io.ReadSeeker, inMemory bool) (dir, error) {
 	m := new(sync.Mutex)
 	root := new(plainDir)
 	tr := tar.NewReader(r)
@@ -78,22 +78,28 @@ func newDirFromTar(r io.ReadSeeker) (dir, error) {
 				d.addEmptyDir(path.Base(h.Name))
 			}
 		} else {
-			d.addFile(&tarfile{h, r, m})
+			var b []byte
+			if inMemory {
+				if b, err = readContent(tr, h.Size); err != nil {
+					return nil, err
+				}
+			}
+			d.addFile(&tarfile{h, r, m, b})
 		}
 	}
 	return &tarfs{root}, nil
 }
 
-func newStaticTreeFsFromTar(r io.ReadSeeker) (*StaticTreeFs, error) {
-	root, err := newDirFromTar(r)
+func newStaticTreeFsFromTar(r io.ReadSeeker, inMemory bool) (*StaticTreeFs, error) {
+	root, err := newDirFromTar(r, inMemory)
 	if err != nil {
 		return nil, err
 	}
 	return &StaticTreeFs{pathfs.NewDefaultFileSystem(), root}, nil
 }
 
-func NewTarFs(r io.ReadSeeker) (pathfs.FileSystem, error) {
-	fs, err := newStaticTreeFsFromTar(r)
+func NewTarFs(r io.ReadSeeker, inMemory bool) (pathfs.FileSystem, error) {
+	fs, err := newStaticTreeFsFromTar(r, inMemory)
 	if err != nil {
 		return nil, err
 	}
@@ -101,9 +107,10 @@ func NewTarFs(r io.ReadSeeker) (pathfs.FileSystem, error) {
 }
 
 type tarfile struct {
-	h *tar.Header
-	r io.ReadSeeker
-	m *sync.Mutex
+	h       *tar.Header
+	r       io.ReadSeeker
+	m       *sync.Mutex
+	content []byte
 }
 
 type dummycloser struct {
@@ -120,10 +127,7 @@ func (f *tarfile) size() (uint64, error) {
 	return uint64(f.h.Size), nil
 }
 
-func (f *tarfile) readCloser() (io.ReadCloser, error) {
-	f.m.Lock()
-	defer f.m.Unlock()
-
+func (f *tarfile) moveToPosition() (*tar.Reader, error) {
 	_, err := f.r.Seek(0, io.SeekStart)
 	if err != nil {
 		return nil, fmt.Errorf("failed to seek: %v", err)
@@ -137,11 +141,35 @@ func (f *tarfile) readCloser() (io.ReadCloser, error) {
 		if h.Name != f.h.Name {
 			continue
 		}
-		var b bytes.Buffer
-		n, err := io.Copy(&b, tr)
-		if n != h.Size {
-			return nil, err
-		}
-		return dummycloser{&b}, nil
+		return tr, nil
 	}
+}
+
+func (f *tarfile) readCloser() (io.ReadCloser, error) {
+	if f.content != nil {
+		r := bytes.NewReader(f.content)
+		return dummycloser{r}, nil
+	}
+
+	f.m.Lock()
+	defer f.m.Unlock()
+
+	tr, err := f.moveToPosition()
+	if err != nil {
+		return nil, err
+	}
+
+	b, err := readContent(tr, f.h.Size)
+	if err != nil {
+		return nil, err
+	}
+	return dummycloser{bytes.NewReader(b)}, nil
+}
+
+func readContent(r *tar.Reader, size int64) ([]byte, error) {
+	b := make([]byte, size)
+	if _, err := r.Read(b); err != nil && err != io.EOF {
+		return nil, err
+	}
+	return b, nil
 }
