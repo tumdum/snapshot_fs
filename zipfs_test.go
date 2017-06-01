@@ -117,7 +117,7 @@ var (
 	multiLevelWithDirs = map[string][]byte{
 		"a/":  nil,
 		"a/b": []byte("c"),
-		"d":   []byte("dir"),
+		"d/":  []byte("dir"),
 	}
 	withGziped = map[string]string{
 		"a":         "b",

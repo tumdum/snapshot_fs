@@ -161,4 +161,12 @@ func TestTarDirs(t *testing.T) {
 	if len(files) > 0 {
 		t.Fatalf("Unexpected files: '%v'", files)
 	}
+
+	d := recursiveFindDir(dir, "d")
+	if len(d.dirs()) != 0 {
+		t.Fatalf("Expected empty dir, got '%v'", d.dirs())
+	}
+	if len(d.files()) != 0 {
+		t.Fatalf("Expected empty files, got '%v'", d.files())
+	}
 }
