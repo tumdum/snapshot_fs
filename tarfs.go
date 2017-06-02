@@ -53,7 +53,7 @@ func (t *tarfs) findFile(name string) file {
 	return t.root.findFile(name)
 }
 
-func newDirFromTar(r io.ReadSeeker, inMemory bool) (dir, error) {
+func newDirFromTar(r io.ReadSeeker) (dir, error) {
 	m := new(sync.Mutex)
 	root := new(plainDir)
 	tr := tar.NewReader(r)
@@ -87,16 +87,16 @@ func newDirFromTar(r io.ReadSeeker, inMemory bool) (dir, error) {
 	return &tarfs{root}, nil
 }
 
-func newStaticTreeFsFromTar(r io.ReadSeeker, inMemory bool) (*StaticTreeFs, error) {
-	root, err := newDirFromTar(r, inMemory)
+func newStaticTreeFsFromTar(r io.ReadSeeker) (*StaticTreeFs, error) {
+	root, err := newDirFromTar(r)
 	if err != nil {
 		return nil, err
 	}
 	return &StaticTreeFs{pathfs.NewDefaultFileSystem(), root}, nil
 }
 
-func NewTarFs(r io.ReadSeeker, inMemory bool) (pathfs.FileSystem, error) {
-	fs, err := newStaticTreeFsFromTar(r, inMemory)
+func NewTarFs(r io.ReadSeeker) (pathfs.FileSystem, error) {
+	fs, err := newStaticTreeFsFromTar(r)
 	if err != nil {
 		return nil, err
 	}

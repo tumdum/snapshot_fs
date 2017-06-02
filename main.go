@@ -47,7 +47,7 @@ func main() {
 		failOnErr("Could not read zip file: %v", err)
 		fs = tmp
 	} else if strings.HasSuffix(flag.Arg(1), ".tar") {
-		tmp, err := NewTarFs(f, true)
+		tmp, err := NewTarFs(f)
 		failOnErr("Could not read tar file: %v", err)
 		fs = tmp
 	}
