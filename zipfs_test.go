@@ -119,23 +119,23 @@ var (
 		"a/b": []byte("c"),
 		"d/":  []byte("dir"),
 	}
-	withGziped = map[string]string{
-		"a":         "b",
-		"c.gz":      "dddddddddddddddddddddddddddddddddddddddddddddddddddddd",
-		"f/g/h.gz":  "iiiiii",
-		"f/g/j.txt": "kkkkk",
+	withGziped = map[string][]byte{
+		"a":         []byte("b"),
+		"c.gz":      []byte("dddddddddddddddddddddddddddddddddddddddddddddddddddddd"),
+		"f/g/h.gz":  []byte("iiiiii"),
+		"f/g/j.txt": []byte("kkkkk"),
 	}
-	withXziped = map[string]string{
-		"a":        "b",
-		"c.xz":     "dddddddddddddddddddddddddddddddddddddddddddddddddddddd",
-		"f/g/h.xz": "iiiiii",
-		"f/g/j.xz": "kkkkk",
+	withXziped = map[string][]byte{
+		"a":        []byte("b"),
+		"c.xz":     []byte("dddddddddddddddddddddddddddddddddddddddddddddddddddddd"),
+		"f/g/h.xz": []byte("iiiiii"),
+		"f/g/j.xz": []byte("kkkkk"),
 	}
-	withBziped = map[string]string{
-		"a":         "b",
-		"c.bz2":     "dddddddddddddddddddddddddddddddddddddddddddddddddddddd",
-		"f/g/h.bz2": "iiiiii",
-		"f/g/j.bz2": "kkkkk",
+	withBziped = map[string][]byte{
+		"a":         []byte("b"),
+		"c.bz2":     []byte("dddddddddddddddddddddddddddddddddddddddddddddddddddddd"),
+		"f/g/h.bz2": []byte("iiiiii"),
+		"f/g/j.bz2": []byte("kkkkk"),
 	}
 )
 
@@ -312,11 +312,11 @@ func TestZipFsOpenNotExisting(t *testing.T) {
 }
 
 func TestZipFsOpenOk(t *testing.T) {
-	for _, config := range []map[string]string{ /*multiLevel, */ withGziped, withXziped, withBziped} {
-		fs := MustNewZipFs(makeZipFile(config))
+	for _, config := range []map[string][]byte{multiLevel, withGziped, withXziped, withBziped} {
+		fs := MustNewZipFs(makeZipFileBytes(config))
 		for name, content := range config {
 			readContent := mustReadFuseFile(name, len(content), fs, t)
-			if readContent != content {
+			if readContent != string(content) {
 				t.Fatalf("Expected content of '%v' is '%v', got '%v'", name, content, readContent)
 			}
 		}
@@ -353,8 +353,8 @@ func TestZipFsAccessingMalformedCompressed(t *testing.T) {
 }
 
 func TestZipFsGetAttrOk(t *testing.T) {
-	for _, config := range []map[string]string{ /*multiLevel, */ withGziped, withXziped, withBziped} {
-		fs := MustNewZipFs(makeZipFile(config))
+	for _, config := range []map[string][]byte{multiLevel, withGziped, withXziped, withBziped} {
+		fs := MustNewZipFs(makeZipFileBytes(config))
 		for name, content := range config {
 			attr, status := fs.GetAttr(name, &fuse.Context{})
 			verifyStatus(name, status, t)
