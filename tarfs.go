@@ -108,12 +108,6 @@ type tarfile struct {
 	offset int64
 }
 
-type dummycloser struct {
-	io.Reader
-}
-
-func (_ dummycloser) Close() error { return nil }
-
 func (f *tarfile) name() string {
 	return path.Base(f.h.Name)
 }
@@ -123,17 +117,11 @@ func (f *tarfile) size() (uint64, error) {
 }
 
 func (f *tarfile) readCloser() (io.ReadCloser, error) {
-
+	f.m.Lock()
 	if _, err := f.r.Seek(f.offset, io.SeekStart); err != nil {
+		f.m.Unlock()
 		return nil, err
 	}
-	return dummycloser{&io.LimitedReader{f.r, f.h.Size}}, nil
-}
-
-func readContent(r *tar.Reader, size int64) ([]byte, error) {
-	b := make([]byte, size)
-	if _, err := r.Read(b); err != nil && err != io.EOF {
-		return nil, err
-	}
-	return b, nil
+	close := func() error { f.m.Unlock(); return nil }
+	return &readcloser{close, &io.LimitedReader{f.r, f.h.Size}}, nil
 }
