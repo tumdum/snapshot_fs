@@ -37,14 +37,13 @@ func newDirFromZip(r io.ReaderAt, size int64) (dir, error) {
 				return nil, err
 			}
 			br := bytes.NewReader(b)
-			// TODO
-			fs, err := newStaticTreeFsFromZip(br, int64(len(b)))
+			dir, err := newDirFromArchive(br, int64(len(b)), f.Name)
 			if err != nil {
 				return nil, err
 			}
-			fs.setName(path.Base(f.Name))
+			dir.setName(path.Base(f.Name))
 			recursiveAddDir(root, path.Dir(f.Name))
-			if !root.setRecursiveDir(f.Name, fs) {
+			if !root.setRecursiveDir(f.Name, dir) {
 				return nil, fmt.Errorf("failed to add fs under '%v'", f.Name)
 			}
 			continue

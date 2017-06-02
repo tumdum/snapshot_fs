@@ -86,7 +86,7 @@ func newDirFromTar(r io.ReadSeeker) (dir, error) {
 				if _, err := tr.Read(b); err != nil && err != io.EOF {
 					return nil, err
 				}
-				tarDir, err := newDirFromTar(bytes.NewReader(b))
+				tarDir, err := newDirFromArchive(bytes.NewReader(b), int64(len(b)), h.Name)
 				if err != nil {
 					return nil, err
 				}
