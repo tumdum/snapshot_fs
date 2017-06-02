@@ -1,10 +1,14 @@
 package main
 
 import (
+	"bytes"
+	"compress/gzip"
 	"testing"
 
+	"github.com/dsnet/compress/bzip2"
 	"github.com/hanwen/go-fuse/fuse"
 	"github.com/hanwen/go-fuse/fuse/pathfs"
+	"github.com/ulikunitz/xz"
 )
 
 func MustNewFs(m map[string][]byte, fsType string) pathfs.FileSystem {
@@ -16,6 +20,42 @@ func MustNewFs(m map[string][]byte, fsType string) pathfs.FileSystem {
 	default:
 		panic("unknown fs type: " + fsType)
 	}
+}
+
+func mustPackGzip(content []byte) []byte {
+	var b bytes.Buffer
+	w := gzip.NewWriter(&b)
+	if _, err := w.Write(content); err != nil {
+		panic(err)
+	}
+	w.Close()
+	return b.Bytes()
+}
+
+func mustPackXz(content []byte) []byte {
+	var b bytes.Buffer
+	w, err := xz.NewWriter(&b)
+	if err != nil {
+		panic(err)
+	}
+	if _, err := w.Write(content); err != nil {
+		panic(err)
+	}
+	w.Close()
+	return b.Bytes()
+}
+
+func mustPackBzip(content []byte) []byte {
+	var b bytes.Buffer
+	w, err := bzip2.NewWriter(&b, &bzip2.WriterConfig{Level: 3})
+	if err != nil {
+		panic(err)
+	}
+	if _, err := w.Write(content); err != nil {
+		panic(err)
+	}
+	w.Close()
+	return b.Bytes()
 }
 
 func TestFsOpenDirOnEmptyFile(t *testing.T) {
