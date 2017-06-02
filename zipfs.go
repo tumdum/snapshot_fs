@@ -7,7 +7,6 @@ import (
 	"io"
 	"io/ioutil"
 	"path"
-	"strings"
 
 	"github.com/hanwen/go-fuse/fuse/pathfs"
 )
@@ -26,7 +25,7 @@ func newDirFromZip(r io.ReaderAt, size int64) (dir, error) {
 			recursiveAddDir(root, f.Name)
 			continue
 		}
-		if strings.HasSuffix(f.Name, ".zip") {
+		if isArchive(f.Name) {
 			rc, err := f.Open()
 			if err != nil {
 				return nil, err

@@ -215,6 +215,17 @@ func TestZipFsGetAttrOfZip(t *testing.T) {
 	verifyStatus("a/d.zip/b", status, t)
 }
 
+func TestZipFsGetAttrOfTar(t *testing.T) {
+	fs := MustNewZipFs(makeZipFileBytes(multiLevelWithTar))
+	attr, status := fs.GetAttr("a/d.tar", &fuse.Context{})
+	verifyStatus("a/d.tar", status, t)
+	if attr.Mode&fuse.S_IFDIR == 0 {
+		t.Fatalf("'a/d.tar' should be dir, but is not")
+	}
+	_, status = fs.GetAttr("a/d.tar/b", &fuse.Context{})
+	verifyStatus("a/d.tar/b", status, t)
+}
+
 func verifyDirName(d dir, name string, t *testing.T) {
 	if d.name() != name {
 		t.Fatalf("Expected name '%v', got '%v'", name, d.name())

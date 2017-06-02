@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"io"
 	"path"
-	"strings"
 	"sync"
 
 	"github.com/hanwen/go-fuse/fuse/pathfs"
@@ -81,7 +80,7 @@ func newDirFromTar(r io.ReadSeeker) (dir, error) {
 				d.addEmptyDir(path.Base(h.Name))
 			}
 		} else {
-			if strings.HasSuffix(h.Name, ".tar") {
+			if isArchive(h.Name) {
 				b := make([]byte, h.Size)
 				if _, err := tr.Read(b); err != nil && err != io.EOF {
 					return nil, err
