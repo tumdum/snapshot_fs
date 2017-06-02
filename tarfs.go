@@ -2,8 +2,6 @@ package main
 
 import (
 	"archive/tar"
-	"bytes"
-	"fmt"
 	"io"
 	"path"
 	"sync"
@@ -59,11 +57,16 @@ func newDirFromTar(r io.ReadSeeker, inMemory bool) (dir, error) {
 	m := new(sync.Mutex)
 	root := new(plainDir)
 	tr := tar.NewReader(r)
+	var offset int64
 	for {
 		h, err := tr.Next()
 		if err == io.EOF {
 			break
 		}
+		if err != nil {
+			return nil, err
+		}
+		offset, err = r.Seek(0, io.SeekCurrent)
 		if err != nil {
 			return nil, err
 		}
@@ -78,13 +81,7 @@ func newDirFromTar(r io.ReadSeeker, inMemory bool) (dir, error) {
 				d.addEmptyDir(path.Base(h.Name))
 			}
 		} else {
-			var b []byte
-			if inMemory {
-				if b, err = readContent(tr, h.Size); err != nil {
-					return nil, err
-				}
-			}
-			d.addFile(&tarfile{h, r, m, b})
+			d.addFile(&tarfile{h, r, m, offset})
 		}
 	}
 	return &tarfs{root}, nil
@@ -107,10 +104,10 @@ func NewTarFs(r io.ReadSeeker, inMemory bool) (pathfs.FileSystem, error) {
 }
 
 type tarfile struct {
-	h       *tar.Header
-	r       io.ReadSeeker
-	m       *sync.Mutex
-	content []byte
+	h      *tar.Header
+	r      io.ReadSeeker
+	m      *sync.Mutex
+	offset int64
 }
 
 type dummycloser struct {
@@ -127,43 +124,12 @@ func (f *tarfile) size() (uint64, error) {
 	return uint64(f.h.Size), nil
 }
 
-func (f *tarfile) moveToPosition() (*tar.Reader, error) {
-	_, err := f.r.Seek(0, io.SeekStart)
-	if err != nil {
-		return nil, fmt.Errorf("failed to seek: %v", err)
-	}
-	tr := tar.NewReader(f.r)
-	for {
-		h, err := tr.Next()
-		if err != nil {
-			return nil, err
-		}
-		if h.Name != f.h.Name {
-			continue
-		}
-		return tr, nil
-	}
-}
-
 func (f *tarfile) readCloser() (io.ReadCloser, error) {
-	if f.content != nil {
-		r := bytes.NewReader(f.content)
-		return dummycloser{r}, nil
-	}
 
-	f.m.Lock()
-	defer f.m.Unlock()
-
-	tr, err := f.moveToPosition()
-	if err != nil {
+	if _, err := f.r.Seek(f.offset, io.SeekStart); err != nil {
 		return nil, err
 	}
-
-	b, err := readContent(tr, f.h.Size)
-	if err != nil {
-		return nil, err
-	}
-	return dummycloser{bytes.NewReader(b)}, nil
+	return dummycloser{&io.LimitedReader{f.r, f.h.Size}}, nil
 }
 
 func readContent(r *tar.Reader, size int64) ([]byte, error) {
