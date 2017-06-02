@@ -95,3 +95,125 @@ func TestFsGetAttrOk(t *testing.T) {
 		}
 	}
 }
+
+func TestFsOpenDirOnMultiLevelFile(t *testing.T) {
+	for _, typ := range []string{"tar", "zip"} {
+		fs := MustNewFs(multiLevel, typ)
+		entries, status := fs.OpenDir("", &fuse.Context{})
+		verifyStatus("", status, t)
+
+		// name -> isFile
+		expected := map[string]bool{
+			"a": false,
+			"b": true,
+			"e": true,
+			"g": false,
+		}
+		if len(entries) != len(expected) {
+			t.Fatalf("Expected %d entries, got %d: %v", len(expected), len(entries), entries)
+		}
+		for _, entry := range entries {
+			isFile, ok := expected[entry.Name]
+			if !ok {
+				t.Fatalf("Found unexpected name '%v'", entry.Name)
+			}
+			if (entry.Mode&fuse.S_IFREG != 0) != isFile {
+				t.Fatalf("File '%v' is not a file in listing", entry.Name)
+			}
+		}
+	}
+}
+
+func TestFsOpenDirOnMultiLevelFileSubdir(t *testing.T) {
+	for _, typ := range []string{"tar", "zip"} {
+		fs := MustNewFs(multiLevel, typ)
+		entries, status := fs.OpenDir("g/h", &fuse.Context{})
+		verifyStatus("g/h", status, t)
+
+		// name -> isFile
+		expected := map[string]bool{
+			"i": false,
+			"n": true,
+		}
+
+		if len(entries) != len(expected) {
+			t.Fatalf("Expected %d entries, got %d: %v", len(expected), len(entries), entries)
+		}
+
+		for _, entry := range entries {
+			isFile, ok := expected[entry.Name]
+			if !ok {
+				t.Fatalf("Found unexpected name '%v'", entry.Name)
+			}
+			if (entry.Mode&fuse.S_IFREG != 0) != isFile {
+				t.Fatalf("File '%v' is not a file in listing", entry.Name)
+			}
+		}
+	}
+}
+
+func TestFsOpenDirModeMultiLevel(t *testing.T) {
+	for _, typ := range []string{"tar", "zip"} {
+		fs := MustNewFs(multiLevel, typ)
+		entries, _ := fs.OpenDir("", &fuse.Context{})
+		for _, entry := range entries {
+			_, isFile := multiLevel[entry.Name]
+			if isFile && (entry.Mode&fuse.S_IFREG == 0) {
+				t.Fatalf("File '%v' is not a file", entry.Name)
+			} else if !isFile && (entry.Mode&fuse.S_IFDIR == 0) {
+				t.Fatalf("Dir '%v' is not a dir", entry.Name)
+			}
+		}
+		entries, _ = fs.OpenDir("g/h", &fuse.Context{})
+		for _, entry := range entries {
+			_, isFile := multiLevel["g/h/"+entry.Name]
+			if isFile && (entry.Mode&fuse.S_IFREG == 0) {
+				t.Fatalf("File '%v' is not a file", entry.Name)
+			} else if !isFile && (entry.Mode&fuse.S_IFDIR == 0) {
+				t.Fatalf("Dir '%v' is not a dir", entry.Name)
+			}
+		}
+	}
+}
+
+func TestFsOpenDirWithExplicitDirs(t *testing.T) {
+	for _, typ := range []string{"tar", "zip"} {
+		fs := MustNewFs(multiLevelWithDirs, typ)
+		expected := map[string]struct{}{"b": {}}
+		entries, status := fs.OpenDir("a", &fuse.Context{})
+		verifyStatus("a", status, t)
+		if len(expected) != len(entries) {
+			t.Fatalf("Expected %d entries, got %d: %v vs %v", len(expected), len(entries), expected, entries)
+		}
+	}
+}
+
+func TestFsOpenDirNotExisting(t *testing.T) {
+	for _, typ := range []string{"tar", "zip"} {
+		fs := MustNewFs(multiLevel, typ)
+		_, status := fs.OpenDir("aaaaaaaaaaaaaa", &fuse.Context{})
+		if status.Ok() {
+			t.Fatalf("Ok status returned for not existing directory")
+		}
+	}
+}
+
+func TestFsOpenNotExisting(t *testing.T) {
+	for _, typ := range []string{"tar", "zip"} {
+		fs := MustNewFs(multiLevel, typ)
+		_, status := fs.Open("aaaaaaaaaaaaaa", 0, &fuse.Context{})
+		if status.Ok() {
+			t.Fatalf("Status Ok for not existing file, should be nok")
+		}
+	}
+}
+
+func TestFsGetAttrNok(t *testing.T) {
+	for _, typ := range []string{"tar", "zip"} {
+		fs := MustNewFs(multiLevel, typ)
+		_, status := fs.GetAttr("aaaaaaaaaaaaaa", &fuse.Context{})
+		if status.Ok() {
+			t.Fatalf("Ok status returned for not existing path")
+		}
+	}
+}

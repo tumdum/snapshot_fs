@@ -115,7 +115,7 @@ var (
 		"e":       []byte("f"),
 	}
 	multiLevelWithDirs = map[string][]byte{
-		"a/":  nil,
+		"a/":  []byte("dir"),
 		"a/b": []byte("c"),
 		"d/":  []byte("dir"),
 	}
@@ -164,98 +164,6 @@ func TestNewZipFsReturnsErrorOnMalformedZipArchive(t *testing.T) {
 	}
 }
 
-func TestZipFsOpenDirOnMultiLevelFile(t *testing.T) {
-	fs := MustNewZipFs(makeZipFileBytes(multiLevel))
-	entries, status := fs.OpenDir("", &fuse.Context{})
-	verifyStatus("", status, t)
-
-	// name -> isFile
-	expected := map[string]bool{
-		"a": false,
-		"b": true,
-		"e": true,
-		"g": false,
-	}
-	if len(entries) != len(expected) {
-		t.Fatalf("Expected %d entries, got %d: %v", len(expected), len(entries), entries)
-	}
-	for _, entry := range entries {
-		isFile, ok := expected[entry.Name]
-		if !ok {
-			t.Fatalf("Found unexpected name '%v'", entry.Name)
-		}
-		if (entry.Mode&fuse.S_IFREG != 0) != isFile {
-			t.Fatalf("File '%v' is not a file in listing", entry.Name)
-		}
-	}
-}
-
-func TestZipFsOpenDirOnMultiLevelFileSubdir(t *testing.T) {
-	fs := MustNewZipFs(makeZipFileBytes(multiLevel))
-	entries, status := fs.OpenDir("g/h", &fuse.Context{})
-	verifyStatus("g/h", status, t)
-
-	// name -> isFile
-	expected := map[string]bool{
-		"i": false,
-		"n": true,
-	}
-
-	if len(entries) != len(expected) {
-		t.Fatalf("Expected %d entries, got %d: %v", len(expected), len(entries), entries)
-	}
-
-	for _, entry := range entries {
-		isFile, ok := expected[entry.Name]
-		if !ok {
-			t.Fatalf("Found unexpected name '%v'", entry.Name)
-		}
-		if (entry.Mode&fuse.S_IFREG != 0) != isFile {
-			t.Fatalf("File '%v' is not a file in listing", entry.Name)
-		}
-	}
-}
-
-func TestZipFsOpenDirModeMultiLevel(t *testing.T) {
-	fs := MustNewZipFs(makeZipFileBytes(multiLevel))
-	entries, _ := fs.OpenDir("", &fuse.Context{})
-	for _, entry := range entries {
-		_, isFile := multiLevel[entry.Name]
-		if isFile && (entry.Mode&fuse.S_IFREG == 0) {
-			t.Fatalf("File '%v' is not a file", entry.Name)
-		} else if !isFile && (entry.Mode&fuse.S_IFDIR == 0) {
-			t.Fatalf("Dir '%v' is not a dir", entry.Name)
-		}
-	}
-	entries, _ = fs.OpenDir("g/h", &fuse.Context{})
-	for _, entry := range entries {
-		_, isFile := multiLevel["g/h/"+entry.Name]
-		if isFile && (entry.Mode&fuse.S_IFREG == 0) {
-			t.Fatalf("File '%v' is not a file", entry.Name)
-		} else if !isFile && (entry.Mode&fuse.S_IFDIR == 0) {
-			t.Fatalf("Dir '%v' is not a dir", entry.Name)
-		}
-	}
-}
-
-func TestZipFsOpenDirWithExplicitDirs(t *testing.T) {
-	fs := MustNewZipFs(makeZipFileBytes(multiLevelWithDirs))
-	expected := map[string]struct{}{"b": {}}
-	entries, status := fs.OpenDir("a", &fuse.Context{})
-	verifyStatus("a", status, t)
-	if len(expected) != len(entries) {
-		t.Fatalf("Expected %d entries, got %d: %v vs %v", len(expected), len(entries), expected, entries)
-	}
-}
-
-func TestZipFsOpenDirNotExisting(t *testing.T) {
-	fs := MustNewZipFs(makeZipFileBytes(multiLevel))
-	_, status := fs.OpenDir("aaaaaaaaaaaaaa", &fuse.Context{})
-	if status.Ok() {
-		t.Fatalf("Ok status returned for not existing directory")
-	}
-}
-
 func mustReadFuseFile(name string, l int, fs pathfs.FileSystem, t *testing.T) string {
 	f, status := fs.Open(name, 0, &fuse.Context{})
 	verifyStatus(name, status, t)
@@ -265,26 +173,6 @@ func mustReadFuseFile(name string, l int, fs pathfs.FileSystem, t *testing.T) st
 	content, status := readResult.Bytes(b)
 	verifyStatus(name, status, t)
 	return string(content)
-}
-
-func TestZipFsOpenNotExisting(t *testing.T) {
-	fs := MustNewZipFs(makeZipFileBytes(multiLevel))
-	_, status := fs.Open("aaaaaaaaaaaaaa", 0, &fuse.Context{})
-	if status.Ok() {
-		t.Fatalf("Status Ok for not existing file, should be nok")
-	}
-}
-
-func TestZipFsOpenOk(t *testing.T) {
-	for _, config := range []map[string][]byte{multiLevel, withGziped, withXziped, withBziped} {
-		fs := MustNewZipFs(makeZipFileBytes(config))
-		for name, content := range config {
-			readContent := mustReadFuseFile(name, len(content), fs, t)
-			if readContent != string(content) {
-				t.Fatalf("Expected content of '%v' is '%v', got '%v'", name, content, readContent)
-			}
-		}
-	}
 }
 
 func TestZipFsAccessingMalformedCompressed(t *testing.T) {
@@ -313,14 +201,6 @@ func TestZipFsAccessingMalformedCompressed(t *testing.T) {
 	_, status = fs.GetAttr("foo.gz", &fuse.Context{})
 	if status.Ok() {
 		t.Fatalf("GetAttr malformed gz file did not fail")
-	}
-}
-
-func TestZipFsGetAttrNok(t *testing.T) {
-	fs := MustNewZipFs(makeZipFileBytes(multiLevel))
-	_, status := fs.GetAttr("aaaaaaaaaaaaaa", &fuse.Context{})
-	if status.Ok() {
-		t.Fatalf("Ok status returned for not existing path")
 	}
 }
 
