@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-type DirReader interface {
+type dirReader interface {
 	io.ReaderAt
 	io.ReadSeeker
 }
@@ -16,7 +16,7 @@ func isArchive(path string) bool {
 	return strings.HasSuffix(path, ".zip") || strings.HasSuffix(path, ".tar")
 }
 
-func newDirFromArchive(r DirReader, size int64, path string) (dir, error) {
+func newDirFromArchive(r dirReader, size int64, path string) (dir, error) {
 	if strings.HasSuffix(path, ".zip") {
 		dir, err := newDirFromZip(r, size)
 		if err != nil {

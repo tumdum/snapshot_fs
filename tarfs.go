@@ -107,7 +107,7 @@ func newStaticTreeFsFromTar(r io.ReadSeeker) (*StaticTreeFs, error) {
 	return &StaticTreeFs{pathfs.NewDefaultFileSystem(), root}, nil
 }
 
-func NewTarFs(r io.ReadSeeker) (pathfs.FileSystem, error) {
+func newTarFs(r io.ReadSeeker) (pathfs.FileSystem, error) {
 	fs, err := newStaticTreeFsFromTar(r)
 	if err != nil {
 		return nil, err
