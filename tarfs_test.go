@@ -8,8 +8,16 @@ import (
 	"testing"
 
 	"github.com/dsnet/compress/bzip2"
+	"github.com/hanwen/go-fuse/fuse"
 	"github.com/hanwen/go-fuse/fuse/pathfs"
 	"github.com/ulikunitz/xz"
+)
+
+var (
+	multiLevelWithTar = map[string][]byte{
+		"a/d.tar": makeTarFile(multiLevel),
+		"e":       []byte("f"),
+	}
 )
 
 func makeTarFile(m map[string][]byte) []byte {
@@ -217,4 +225,15 @@ func TestTarDirs(t *testing.T) {
 	if len(d.files()) != 0 {
 		t.Fatalf("Expected empty files, got '%v'", d.files())
 	}
+}
+
+func TestTarFsGetAttrOfZip(t *testing.T) {
+	fs := MustNewTarFs(makeTarFile(multiLevelWithTar))
+	attr, status := fs.GetAttr("a/d.tar", &fuse.Context{})
+	verifyStatus("a/d.tar", status, t)
+	if attr.Mode&fuse.S_IFDIR == 0 {
+		t.Fatalf("'a/d.tar' should be dir, but is not")
+	}
+	_, status = fs.GetAttr("a/d.tar/b", &fuse.Context{})
+	verifyStatus("a/d.tar/b", status, t)
 }

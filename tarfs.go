@@ -2,8 +2,10 @@ package main
 
 import (
 	"archive/tar"
+	"bytes"
 	"io"
 	"path"
+	"strings"
 	"sync"
 
 	"github.com/hanwen/go-fuse/fuse/pathfs"
@@ -79,7 +81,20 @@ func newDirFromTar(r io.ReadSeeker) (dir, error) {
 				d.addEmptyDir(path.Base(h.Name))
 			}
 		} else {
-			d.addFile(newFile(&tarfile{h, r, m, offset}))
+			if strings.HasSuffix(h.Name, ".tar") {
+				b := make([]byte, h.Size)
+				if _, err := tr.Read(b); err != nil && err != io.EOF {
+					return nil, err
+				}
+				tarDir, err := newDirFromTar(bytes.NewReader(b))
+				if err != nil {
+					return nil, err
+				}
+				tarDir.setName(path.Base(h.Name))
+				d.addDir(tarDir)
+			} else {
+				d.addFile(newFile(&tarfile{h, r, m, offset}))
+			}
 		}
 	}
 	return &tarfs{root}, nil
