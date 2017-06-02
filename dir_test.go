@@ -15,7 +15,7 @@ func mustDirFromZip(m map[string][]byte) dir {
 	return d
 }
 
-func TestXXX(t *testing.T) {
+func TestDirApi(t *testing.T) {
 	root := mustDirFromZip(multiLevelWithZip)
 	dirs := root.dirs()
 	expectedDirs := map[string]struct{}{
