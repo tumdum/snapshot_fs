@@ -3,9 +3,13 @@ package main
 import (
 	"archive/tar"
 	"bytes"
+	"compress/gzip"
+	"strings"
 	"testing"
 
+	"github.com/dsnet/compress/bzip2"
 	"github.com/hanwen/go-fuse/fuse/pathfs"
+	"github.com/ulikunitz/xz"
 )
 
 func makeTarFile(m map[string][]byte) []byte {
@@ -20,9 +24,42 @@ func makeTarFile(m map[string][]byte) []byte {
 		}
 
 		isDir := string(content) == "dir"
+		buf := content
 		if isDir {
 			header.Typeflag = tar.TypeDir
 			header.Size = 0
+		} else {
+			var b bytes.Buffer
+			if strings.HasSuffix(path, ".gz") {
+				w := gzip.NewWriter(&b)
+				if _, err := w.Write(content); err != nil {
+					panic(err)
+				}
+				w.Close()
+				buf = b.Bytes()
+			} else if strings.HasSuffix(path, ".xz") {
+				w, err := xz.NewWriter(&b)
+				if err != nil {
+					panic(err)
+				}
+				if _, err := w.Write(content); err != nil {
+					panic(err)
+				}
+				w.Close()
+				buf = b.Bytes()
+			} else if strings.HasSuffix(path, ".bz2") {
+				var b bytes.Buffer
+				w, err := bzip2.NewWriter(&b, &bzip2.WriterConfig{Level: 3})
+				if err != nil {
+					panic(err)
+				}
+				if _, err := w.Write(content); err != nil {
+					panic(err)
+				}
+				w.Close()
+				buf = b.Bytes()
+			}
+			header.Size = int64(len(buf))
 		}
 
 		if err := tw.WriteHeader(&header); err != nil {
@@ -30,7 +67,7 @@ func makeTarFile(m map[string][]byte) []byte {
 		}
 
 		if !isDir {
-			if _, err := tw.Write(content); err != nil {
+			if _, err := tw.Write(buf); err != nil {
 				panic(err)
 			}
 		}

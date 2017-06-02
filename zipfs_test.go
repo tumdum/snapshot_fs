@@ -96,10 +96,10 @@ func makeZipFileBytes(files map[string][]byte) []byte {
 }
 
 var (
-	flatFile = map[string]string{
-		"foo.txt": "foo.txt file content",
-		"bar":     "bar file content",
-		"empty":   "empty",
+	flatFile = map[string][]byte{
+		"foo.txt": []byte("foo.txt file content"),
+		"bar":     []byte("bar file content"),
+		"empty":   []byte("empty"),
 	}
 	multiLevel = map[string][]byte{
 		"a/b":     []byte("c"),
@@ -139,7 +139,7 @@ var (
 	}
 )
 
-func keys(m map[string]string) []string {
+func keys(m map[string][]byte) []string {
 	keys := []string{}
 	for k := range m {
 		keys = append(keys, k)
@@ -161,42 +161,6 @@ func TestNewZipFsReturnsErrorOnMalformedZipArchive(t *testing.T) {
 	_, err := NewZipFs(r, 4)
 	if err == nil {
 		t.Fatalf("Passing malformed reader to NewZipFs did not result in error")
-	}
-}
-
-func TestZipFsOpenDirOnEmptyFile(t *testing.T) {
-	fs := MustNewZipFs(makeZipFile(nil))
-	entries, status := fs.OpenDir("", &fuse.Context{})
-	verifyStatus("", status, t)
-
-	if len(entries) != 0 {
-		t.Fatalf("Expected 0 entries, got %d: %v", len(entries), entries)
-	}
-}
-
-func TestZipFsOpenDirOnFlatFile(t *testing.T) {
-	fs := MustNewZipFs(makeZipFile(flatFile))
-	entries, status := fs.OpenDir("", &fuse.Context{})
-	verifyStatus("", status, t)
-
-	if len(entries) != len(flatFile) {
-		t.Fatalf("Expected %d entries, got %d: %v vs %v", len(flatFile), len(entries), keys(flatFile), entries)
-	}
-	for _, entry := range entries {
-		if _, ok := flatFile[entry.Name]; !ok {
-			t.Fatalf("Found unexpected name '%v'", entry.Name)
-		}
-	}
-}
-
-func TestZipFsOpenDirOnFileInFlatFile(t *testing.T) {
-	fs := MustNewZipFs(makeZipFile(flatFile))
-	entries, status := fs.OpenDir("empty", &fuse.Context{})
-	if status.Ok() {
-		t.Fatalf("Expected error status, found ok")
-	}
-	if len(entries) != 0 {
-		t.Fatalf("Expected no entries, found '%v'", entries)
 	}
 }
 
@@ -349,26 +313,6 @@ func TestZipFsAccessingMalformedCompressed(t *testing.T) {
 	_, status = fs.GetAttr("foo.gz", &fuse.Context{})
 	if status.Ok() {
 		t.Fatalf("GetAttr malformed gz file did not fail")
-	}
-}
-
-func TestZipFsGetAttrOk(t *testing.T) {
-	for _, config := range []map[string][]byte{multiLevel, withGziped, withXziped, withBziped} {
-		fs := MustNewZipFs(makeZipFileBytes(config))
-		for name, content := range config {
-			attr, status := fs.GetAttr(name, &fuse.Context{})
-			verifyStatus(name, status, t)
-			if attr.Mode&fuse.S_IFREG == 0 {
-				t.Fatalf("File '%v' is not a file", name)
-			}
-			if uint64(len(content)) != attr.Size {
-				t.Fatalf("File '%v' has size %d, but got %d", name, len(content), attr.Size)
-			}
-		}
-		_, status := fs.GetAttr("", &fuse.Context{})
-		if !status.Ok() {
-			t.Fatalf("Nok status for root of fs")
-		}
 	}
 }
 

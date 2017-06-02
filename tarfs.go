@@ -70,8 +70,6 @@ func newDirFromTar(r io.ReadSeeker) (dir, error) {
 		if err != nil {
 			return nil, err
 		}
-		// TODO: distinguish files and directories:
-		// TypeReg, TypeRegA, TypeDir
 		base := path.Dir(h.Name)
 		d := recursiveAddDir(root, base)
 		// NOTE: this can't be concurrent if same reedseeker will be move
@@ -81,7 +79,7 @@ func newDirFromTar(r io.ReadSeeker) (dir, error) {
 				d.addEmptyDir(path.Base(h.Name))
 			}
 		} else {
-			d.addFile(&tarfile{h, r, m, offset})
+			d.addFile(newFile(&tarfile{h, r, m, offset}))
 		}
 	}
 	return &tarfs{root}, nil

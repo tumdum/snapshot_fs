@@ -19,7 +19,7 @@ func newDirFromZip(r io.ReaderAt, size int64) (dir, error) {
 	}
 	root := newPlainDir("")
 	for _, f := range zipr.File {
-		file := newFile(f)
+		file := newFile(newPlainFile(f))
 		// TODO: This probably should be done based on metadata from zip file
 		// header.
 		if f.Name[len(f.Name)-1] == '/' {

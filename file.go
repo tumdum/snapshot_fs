@@ -102,30 +102,30 @@ func newPlainFile(z *zip.File) *plainFile {
 	return &plainFile{z}
 }
 
-func newGzipFile(z *zip.File) *compressedFile {
+func newGzipFile(f file) *compressedFile {
 	d := func(r io.Reader) (io.Reader, error) { return gzip.NewReader(r) }
-	return &compressedFile{newPlainFile(z), d, math.MaxUint64}
+	return &compressedFile{f, d, math.MaxUint64}
 }
 
-func newXzFile(z *zip.File) *compressedFile {
+func newXzFile(f file) *compressedFile {
 	d := func(r io.Reader) (io.Reader, error) { return xz.NewReader(r) }
-	return &compressedFile{newPlainFile(z), d, math.MaxUint64}
+	return &compressedFile{f, d, math.MaxUint64}
 }
 
-func newBzip2File(z *zip.File) *compressedFile {
+func newBzip2File(f file) *compressedFile {
 	d := func(r io.Reader) (io.Reader, error) { return bzip2.NewReader(r), nil }
-	return &compressedFile{newPlainFile(z), d, math.MaxUint64}
+	return &compressedFile{f, d, math.MaxUint64}
 }
 
-func newFile(f *zip.File) file {
+func newFile(f file) file {
 	switch {
-	case strings.HasSuffix(f.Name, ".gz"):
+	case strings.HasSuffix(f.name(), ".gz"):
 		return newGzipFile(f)
-	case strings.HasSuffix(f.Name, ".xz"):
+	case strings.HasSuffix(f.name(), ".xz"):
 		return newXzFile(f)
-	case strings.HasSuffix(f.Name, ".bz2"):
+	case strings.HasSuffix(f.name(), ".bz2"):
 		return newBzip2File(f)
 	default:
-		return newPlainFile(f)
+		return f
 	}
 }
