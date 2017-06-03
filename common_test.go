@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"compress/gzip"
+	"errors"
 	"strings"
 	"testing"
 
@@ -57,6 +58,53 @@ func mustPackBzip(content []byte) []byte {
 	}
 	w.Close()
 	return b.Bytes()
+}
+
+func mustMakeArchive(m map[string][]byte, typ string) []byte {
+	switch typ {
+	case "zip":
+		return makeZipFileBytes(m)
+	case "tar":
+		return makeTarFile(m)
+	default:
+		panic("unknown fs type: " + typ)
+	}
+}
+
+type brokenDirReader struct {
+	dirReader
+	error
+	c, t int
+}
+
+func (r *brokenDirReader) Read(b []byte) (int, error) {
+	if r.c == r.t {
+		return 0, r.error
+	}
+	r.t++
+	return r.dirReader.Read(b)
+}
+
+func (r *brokenDirReader) Seek(offset int64, whence int) (int64, error) {
+	if r.c == r.t {
+		return 0, r.error
+	}
+	r.t++
+	return r.dirReader.Seek(offset, whence)
+}
+
+func TestNewDirFromArchiveReturnsErrorOnBrokenReader(t *testing.T) {
+	for _, typ := range []string{"tar", "zip"} {
+		for i := 0; i != 50; i++ {
+			b := mustMakeArchive(multiLevel, typ)
+			br := bytes.NewReader(b)
+			r := &brokenDirReader{br, errors.New("error"), i, 0}
+			_, err := newDirFromArchive(r, int64(len(b)), typ)
+			if err == nil {
+				t.Fatalf("malformed archive did not generate error")
+			}
+		}
+	}
 }
 
 func TestNewDirFromArchiveReturnsErrorOnMalformedInput(t *testing.T) {
