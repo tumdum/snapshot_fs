@@ -425,7 +425,7 @@ func TestArchiveNamesAreHidden(t *testing.T) {
 		if len(expected) != len(dirs) {
 			t.Fatalf("Expected %d dirs, got %d: %v vs %v", len(expected), len(dirs), expected, dirs)
 		}
-		for n, _ := range expected {
+		for n := range expected {
 			name := unarchivedName(n)
 			found := false
 			for _, d := range dirs {
@@ -455,7 +455,7 @@ func TestCollidingArchiveNamesAreNotHidden(t *testing.T) {
 		if len(colliding) != len(dirs) {
 			t.Fatalf("Expected %d dirs, got %d: %v vs %v", len(colliding), len(dirs), keys(colliding), dirNames(dirs))
 		}
-		for c, _ := range colliding {
+		for c := range colliding {
 			found := false
 			name := strings.TrimSuffix(c, "/")
 			for _, d := range dirs {
