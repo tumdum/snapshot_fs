@@ -1,13 +1,11 @@
 package main
 
 import (
-	"archive/zip"
 	"compress/bzip2"
 	"compress/gzip"
 	"io"
 	"io/ioutil"
 	"math"
-	"path"
 	"strings"
 
 	"github.com/ulikunitz/xz"
@@ -28,24 +26,32 @@ func allBytes(f file) ([]byte, error) {
 	return ioutil.ReadAll(rc)
 }
 
-type plainFile struct {
-	z *zip.File
+func newGzipFile(f file) *compressedFile {
+	d := func(r io.Reader) (io.Reader, error) { return gzip.NewReader(r) }
+	return &compressedFile{f, d, math.MaxUint64}
 }
 
-func (f *plainFile) name() string {
-	return path.Base(f.z.Name)
+func newXzFile(f file) *compressedFile {
+	d := func(r io.Reader) (io.Reader, error) { return xz.NewReader(r) }
+	return &compressedFile{f, d, math.MaxUint64}
 }
 
-func (f *plainFile) size() (uint64, error) {
-	return f.z.UncompressedSize64, nil
+func newBzip2File(f file) *compressedFile {
+	d := func(r io.Reader) (io.Reader, error) { return bzip2.NewReader(r), nil }
+	return &compressedFile{f, d, math.MaxUint64}
 }
 
-func (f *plainFile) readCloser() (io.ReadCloser, error) {
-	return f.z.Open()
-}
-
-func (f *plainFile) String() string {
-	return f.name()
+func newFile(f file) file {
+	switch {
+	case strings.HasSuffix(f.name(), ".gz"):
+		return newGzipFile(f)
+	case strings.HasSuffix(f.name(), ".xz"):
+		return newXzFile(f)
+	case strings.HasSuffix(f.name(), ".bz2"):
+		return newBzip2File(f)
+	default:
+		return f
+	}
 }
 
 type compressedFile struct {
@@ -96,36 +102,4 @@ func (f *compressedFile) size() (uint64, error) {
 
 func (f *compressedFile) String() string {
 	return f.name()
-}
-
-func newPlainFile(z *zip.File) *plainFile {
-	return &plainFile{z}
-}
-
-func newGzipFile(f file) *compressedFile {
-	d := func(r io.Reader) (io.Reader, error) { return gzip.NewReader(r) }
-	return &compressedFile{f, d, math.MaxUint64}
-}
-
-func newXzFile(f file) *compressedFile {
-	d := func(r io.Reader) (io.Reader, error) { return xz.NewReader(r) }
-	return &compressedFile{f, d, math.MaxUint64}
-}
-
-func newBzip2File(f file) *compressedFile {
-	d := func(r io.Reader) (io.Reader, error) { return bzip2.NewReader(r), nil }
-	return &compressedFile{f, d, math.MaxUint64}
-}
-
-func newFile(f file) file {
-	switch {
-	case strings.HasSuffix(f.name(), ".gz"):
-		return newGzipFile(f)
-	case strings.HasSuffix(f.name(), ".xz"):
-		return newXzFile(f)
-	case strings.HasSuffix(f.name(), ".bz2"):
-		return newBzip2File(f)
-	default:
-		return f
-	}
 }
