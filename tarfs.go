@@ -95,5 +95,5 @@ func (f *tarfile) readCloser() (io.ReadCloser, error) {
 		return nil, err
 	}
 	close := func() error { f.m.Unlock(); return nil }
-	return &readcloser{close, &io.LimitedReader{R: f.r, N: f.h.Size}}, nil
+	return &readcloser{&io.LimitedReader{R: f.r, N: f.h.Size}, close}, nil
 }

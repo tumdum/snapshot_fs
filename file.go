@@ -65,16 +65,12 @@ func (f *compressedFile) name() string {
 }
 
 type readcloser struct {
+	io.Reader
 	close func() error
-	r     io.Reader
 }
 
 func (r *readcloser) Close() error {
 	return r.close()
-}
-
-func (r *readcloser) Read(b []byte) (int, error) {
-	return r.r.Read(b)
 }
 
 func (f *compressedFile) readCloser() (io.ReadCloser, error) {
@@ -86,7 +82,7 @@ func (f *compressedFile) readCloser() (io.ReadCloser, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &readcloser{r.Close, d}, nil
+	return &readcloser{d, r.Close}, nil
 }
 
 func (f *compressedFile) size() (uint64, error) {
