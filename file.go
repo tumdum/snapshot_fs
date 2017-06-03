@@ -90,14 +90,14 @@ func (f *compressedFile) readCloser() (io.ReadCloser, error) {
 }
 
 func (f *compressedFile) size() (uint64, error) {
-	if f.s != math.MaxUint64 {
-		return f.s, nil
+	if f.s == math.MaxUint64 {
+		b, err := allBytes(f)
+		if err != nil {
+			return 0, err
+		}
+		f.s = uint64(len(b))
 	}
-	b, err := allBytes(f)
-	if err != nil {
-		return 0, err
-	}
-	return uint64(len(b)), nil
+	return f.s, nil
 }
 
 func (f *compressedFile) String() string {
