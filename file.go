@@ -6,6 +6,7 @@ import (
 	"io"
 	"io/ioutil"
 	"math"
+	"path/filepath"
 	"strings"
 
 	"github.com/ulikunitz/xz"
@@ -41,13 +42,29 @@ func newBzip2File(f file) *compressedFile {
 	return &compressedFile{f, d, math.MaxUint64}
 }
 
-func newFile(f file) file {
-	switch {
-	case strings.HasSuffix(f.name(), ".gz"):
+func removeExt(path string) string {
+	return strings.TrimSuffix(path, filepath.Ext(path))
+}
+
+func isCompressed(path string) bool {
+	pred := func(ext string) bool { return strings.HasSuffix(path, ext) }
+	return pred(".gz") || pred(".xz") || pred(".bz2")
+}
+
+func uncompressedName(path string) string {
+	if isCompressed(path) {
+		return removeExt(path)
+	}
+	return path
+}
+
+func newFile(f file, ext string) file {
+	switch ext {
+	case ".gz":
 		return newGzipFile(f)
-	case strings.HasSuffix(f.name(), ".xz"):
+	case ".xz":
 		return newXzFile(f)
-	case strings.HasSuffix(f.name(), ".bz2"):
+	case ".bz2":
 		return newBzip2File(f)
 	default:
 		return f

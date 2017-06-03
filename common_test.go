@@ -85,6 +85,14 @@ func (r *brokenDirReader) Read(b []byte) (int, error) {
 	return r.dirReader.Read(b)
 }
 
+func (r *brokenDirReader) ReadAt(p []byte, off int64) (n int, err error) {
+	if r.c == r.t {
+		return 0, r.error
+	}
+	r.t++
+	return r.dirReader.ReadAt(p, off)
+}
+
 func (r *brokenDirReader) Seek(offset int64, whence int) (int64, error) {
 	if r.c == r.t {
 		return 0, r.error
@@ -95,7 +103,7 @@ func (r *brokenDirReader) Seek(offset int64, whence int) (int64, error) {
 
 func TestNewDirFromArchiveReturnsErrorOnBrokenReader(t *testing.T) {
 	for _, typ := range []string{"tar", "zip"} {
-		for i := 0; i != 50; i++ {
+		for i := 0; i != 100; i++ {
 			b := mustMakeArchive(multiLevel, typ)
 			br := bytes.NewReader(b)
 			r := &brokenDirReader{br, errors.New("error"), i, 0}
@@ -170,9 +178,10 @@ func TestFsOpenOk(t *testing.T) {
 		for _, config := range []map[string][]byte{multiLevel, withGziped, withXziped, withBziped} {
 			fs := MustNewFs(config, typ)
 			for name, content := range config {
-				readContent := mustReadFuseFile(name, len(content), fs, t)
+				realName := uncompressedName(name)
+				readContent := mustReadFuseFile(realName, len(content), fs, t)
 				if readContent != string(content) {
-					t.Fatalf("Expected content of '%v' is '%v', got '%v'", name, content, readContent)
+					t.Fatalf("%v: Expected content of '%v' is '%v', got '%v'", typ, realName, content, readContent)
 				}
 			}
 		}
@@ -184,13 +193,14 @@ func TestFsGetAttrOk(t *testing.T) {
 		for _, config := range []map[string][]byte{multiLevel, withGziped, withXziped, withBziped} {
 			fs := MustNewFs(config, typ)
 			for name, content := range config {
-				attr, status := fs.GetAttr(name, &fuse.Context{})
-				verifyStatus(name, status, t)
+				realName := uncompressedName(name)
+				attr, status := fs.GetAttr(realName, &fuse.Context{})
+				verifyStatus(realName, status, t)
 				if attr.Mode&fuse.S_IFREG == 0 {
-					t.Fatalf("File '%v' is not a file", name)
+					t.Fatalf("File '%v' is not a file", realName)
 				}
 				if uint64(len(content)) != attr.Size {
-					t.Fatalf("File '%v' has size %d, but got %d", name, len(content), attr.Size)
+					t.Fatalf("File '%v' has size %d, but got %d", realName, len(content), attr.Size)
 				}
 			}
 			_, status := fs.GetAttr("", &fuse.Context{})

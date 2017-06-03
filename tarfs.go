@@ -50,7 +50,8 @@ func newDirFromTar(r io.ReadSeeker) (dir, error) {
 				tarDir.setName(path.Base(h.Name))
 				d.addDir(tarDir)
 			} else {
-				d.addFile(newFile(&tarfile{h, r, m, offset}))
+				ext := path.Ext(h.Name)
+				d.addFile(newFile(&tarFile{h, uncompressedName(h.Name), r, m, offset}, ext))
 			}
 		}
 	}
@@ -73,22 +74,23 @@ func newTarFs(r io.ReadSeeker) (pathfs.FileSystem, error) {
 	return pathfs.NewLockingFileSystem(fs), nil
 }
 
-type tarfile struct {
+type tarFile struct {
 	h      *tar.Header
+	n      string
 	r      io.ReadSeeker
 	m      *sync.Mutex
 	offset int64
 }
 
-func (f *tarfile) name() string {
-	return path.Base(f.h.Name)
+func (f *tarFile) name() string {
+	return path.Base(f.n)
 }
 
-func (f *tarfile) size() (uint64, error) {
+func (f *tarFile) size() (uint64, error) {
 	return uint64(f.h.Size), nil
 }
 
-func (f *tarfile) readCloser() (io.ReadCloser, error) {
+func (f *tarFile) readCloser() (io.ReadCloser, error) {
 	f.m.Lock()
 	if _, err := f.r.Seek(f.offset, io.SeekStart); err != nil {
 		f.m.Unlock()

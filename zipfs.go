@@ -18,7 +18,8 @@ func newDirFromZip(r io.ReaderAt, size int64) (dir, error) {
 	}
 	root := newPlainDir("")
 	for _, f := range zipr.File {
-		file := newFile(newZipFile(f))
+		ext := path.Ext(f.Name)
+		file := newFile(newZipFile(f), ext)
 		// TODO: This probably should be done based on metadata from zip file
 		// header.
 		if f.Name[len(f.Name)-1] == '/' {
@@ -71,10 +72,11 @@ func NewZipFs(r io.ReaderAt, size int64) (pathfs.FileSystem, error) {
 
 type zipFile struct {
 	*zip.File
+	n string
 }
 
 func (f *zipFile) name() string {
-	return path.Base(f.Name)
+	return path.Base(f.n)
 }
 
 func (f *zipFile) size() (uint64, error) {
@@ -90,5 +92,5 @@ func (f *zipFile) String() string {
 }
 
 func newZipFile(z *zip.File) file {
-	return &zipFile{z}
+	return &zipFile{z, uncompressedName(z.Name)}
 }
