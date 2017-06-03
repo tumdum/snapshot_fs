@@ -70,19 +70,19 @@ func NewZipFs(r io.ReaderAt, size int64) (pathfs.FileSystem, error) {
 }
 
 type zipFile struct {
-	z *zip.File
+	*zip.File
 }
 
 func (f *zipFile) name() string {
-	return path.Base(f.z.Name)
+	return path.Base(f.Name)
 }
 
 func (f *zipFile) size() (uint64, error) {
-	return f.z.UncompressedSize64, nil
+	return f.UncompressedSize64, nil
 }
 
 func (f *zipFile) readCloser() (io.ReadCloser, error) {
-	return f.z.Open()
+	return f.Open()
 }
 
 func (f *zipFile) String() string {

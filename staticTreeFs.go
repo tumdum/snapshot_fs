@@ -13,15 +13,15 @@ import (
 // change shape after mounting.
 type StaticTreeFs struct {
 	pathfs.FileSystem
-	root dir
+	dir
 }
 
 func (fs *StaticTreeFs) isDir(path string) bool {
-	return recursiveFindDir(fs.root, path) != nil
+	return recursiveFindDir(fs.dir, path) != nil
 }
 
 func (fs *StaticTreeFs) fileSize(p string) (uint64, bool) {
-	f := recursiveFindFile(fs.root, p)
+	f := recursiveFindFile(fs.dir, p)
 	if f == nil {
 		return 0, false
 	}
@@ -36,7 +36,7 @@ func (fs *StaticTreeFs) fileSize(p string) (uint64, bool) {
 // OpenDir returns list of files and directories directly under path.
 func (fs *StaticTreeFs) OpenDir(path string, context *fuse.Context) ([]fuse.DirEntry, fuse.Status) {
 	debugf("OpenDir: '%s'", path)
-	d := recursiveFindDir(fs.root, path)
+	d := recursiveFindDir(fs.dir, path)
 	if d == nil {
 		return nil, fuse.ENOENT
 	}
@@ -64,7 +64,7 @@ func (fs *StaticTreeFs) GetAttr(path string, context *fuse.Context) (*fuse.Attr,
 
 // Open return File representing contents stored under path p.
 func (fs *StaticTreeFs) Open(p string, flags uint32, context *fuse.Context) (nodefs.File, fuse.Status) {
-	f := recursiveFindFile(fs.root, p)
+	f := recursiveFindFile(fs.dir, p)
 	if f == nil {
 		return nil, fuse.ENOENT
 	}
@@ -74,46 +74,6 @@ func (fs *StaticTreeFs) Open(p string, flags uint32, context *fuse.Context) (nod
 		return nil, fuse.EIO
 	}
 	return nodefs.NewDataFile(b), fuse.OK
-}
-
-func (fs *StaticTreeFs) name() string {
-	return fs.root.name()
-}
-
-func (fs *StaticTreeFs) setName(name string) {
-	fs.root.setName(name)
-}
-
-func (fs *StaticTreeFs) addEmptyDir(name string) dir {
-	return fs.root.addEmptyDir(name)
-}
-
-func (fs *StaticTreeFs) addFile(f file) file {
-	return fs.root.addFile(f)
-}
-
-func (fs *StaticTreeFs) dirs() []dir {
-	return fs.root.dirs()
-}
-
-func (fs *StaticTreeFs) files() []file {
-	return fs.root.files()
-}
-
-func (fs *StaticTreeFs) setRecursiveDir(name string, newDir dir) bool {
-	return fs.root.setRecursiveDir(name, newDir)
-}
-
-func (fs *StaticTreeFs) addDir(newDir dir) dir {
-	return fs.root.addDir(newDir)
-}
-
-func (fs *StaticTreeFs) findDir(name string) dir {
-	return fs.root.findDir(name)
-}
-
-func (fs *StaticTreeFs) findFile(name string) file {
-	return fs.root.findFile(name)
 }
 
 func recursiveFindDir(root dir, path string) dir {
