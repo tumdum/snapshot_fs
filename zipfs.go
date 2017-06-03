@@ -11,15 +11,25 @@ import (
 	"github.com/hanwen/go-fuse/fuse/pathfs"
 )
 
+func findAllPathsInZip(z *zip.Reader) map[string]struct{} {
+	m := map[string]struct{}{}
+	for _, f := range z.File {
+		m[f.Name] = struct{}{}
+	}
+	return m
+}
+
 func newDirFromZip(r io.ReaderAt, size int64) (dir, error) {
 	zipr, err := zip.NewReader(r, size)
 	if err != nil {
 		return nil, err
 	}
+	seen := findAllPathsInZip(zipr)
 	root := newPlainDir("")
 	for _, f := range zipr.File {
 		ext := path.Ext(f.Name)
-		file := newFile(newZipFile(f), ext)
+		name := notCollidingName(f.Name, seen)
+		file := newFile(newZipFile(f, name), ext)
 		// TODO: This probably should be done based on metadata from zip file
 		// header.
 		if f.Name[len(f.Name)-1] == '/' {
@@ -91,6 +101,6 @@ func (f *zipFile) String() string {
 	return f.name()
 }
 
-func newZipFile(z *zip.File) file {
-	return &zipFile{z, uncompressedName(z.Name)}
+func newZipFile(z *zip.File, name string) file {
+	return &zipFile{z, name}
 }

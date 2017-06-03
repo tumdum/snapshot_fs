@@ -14,7 +14,28 @@ type tarfs struct {
 	dir
 }
 
+func findAllPathsInTar(r io.ReadSeeker) (map[string]struct{}, error) {
+	m := map[string]struct{}{}
+	tr := tar.NewReader(r)
+	defer r.Seek(0, io.SeekStart)
+	for {
+		h, err := tr.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+		m[h.Name] = struct{}{}
+	}
+	return m, nil
+}
+
 func newDirFromTar(r io.ReadSeeker) (dir, error) {
+	seen, err := findAllPathsInTar(r)
+	if err != nil {
+		return nil, err
+	}
 	m := new(sync.Mutex)
 	root := new(plainDir)
 	tr := tar.NewReader(r)
@@ -51,7 +72,8 @@ func newDirFromTar(r io.ReadSeeker) (dir, error) {
 				d.addDir(tarDir)
 			} else {
 				ext := path.Ext(h.Name)
-				d.addFile(newFile(&tarFile{h, uncompressedName(h.Name), r, m, offset}, ext))
+				name := notCollidingName(h.Name, seen)
+				d.addFile(newFile(&tarFile{h, name, r, m, offset}, ext))
 			}
 		}
 	}

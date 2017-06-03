@@ -386,3 +386,27 @@ func TestFsGetAttrNok(t *testing.T) {
 		}
 	}
 }
+
+func TestDirGetFilesWithCollisionsWithCompressedOnes(t *testing.T) {
+	content := []byte("foo bar baz")
+	colliding := map[string][]byte{
+		"a.txt.gz":  mustPackGzip(content),
+		"a.txt":     content,
+		"b.txt.xz":  mustPackXz(content),
+		"b.txt":     content,
+		"c.txt.bz2": mustPackBzip(content),
+		"c.txt":     content,
+	}
+	for _, typ := range []string{"tar", "zip"} {
+		d := mustNewDir(colliding, typ)
+		files := d.files()
+		if len(files) != len(colliding) {
+			t.Fatalf("Expected %d files, got %d: %v vs %v", len(colliding), len(files), colliding, files)
+		}
+		for _, f := range files {
+			if _, ok := colliding[f.name()]; !ok {
+				t.Fatalf("Unexpected file %v", f)
+			}
+		}
+	}
+}
