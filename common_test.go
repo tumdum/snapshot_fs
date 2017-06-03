@@ -68,6 +68,13 @@ func TestNewDirFromArchiveReturnsErrorOnMalformedInput(t *testing.T) {
 	}
 }
 
+func TestNewDirFromArchiveOnUnsupportedFormatFails(t *testing.T) {
+	_, err := newDirFromArchive(strings.NewReader("malformed"), 3, "file.foo")
+	if err == nil {
+		t.Fatalf("malformed archive did not generate error")
+	}
+}
+
 func TestFsOpenDirOnEmptyFile(t *testing.T) {
 	for _, typ := range []string{"tar", "zip"} {
 		fs := MustNewFs(nil, typ)
