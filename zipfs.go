@@ -12,10 +12,12 @@ import (
 	"github.com/hanwen/go-fuse/fuse/pathfs"
 )
 
-func findAllPathsInZip(z *zip.Reader) map[string]struct{} {
-	m := map[string]struct{}{}
+func findAllPathsInZip(z *zip.Reader) map[string]int {
+	m := map[string]int{}
 	for _, f := range z.File {
-		m[strings.TrimSuffix(f.Name, "/")] = struct{}{}
+		name := strings.TrimSuffix(f.Name, "/")
+		name = uncompressedName(unarchivedName(name))
+		m[name]++
 	}
 	return m
 }

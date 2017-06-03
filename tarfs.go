@@ -15,8 +15,8 @@ type tarfs struct {
 	dir
 }
 
-func findAllPathsInTar(r io.ReadSeeker) (map[string]struct{}, error) {
-	m := map[string]struct{}{}
+func findAllPathsInTar(r io.ReadSeeker) (map[string]int, error) {
+	m := map[string]int{}
 	tr := tar.NewReader(r)
 	defer r.Seek(0, io.SeekStart)
 	for {
@@ -28,7 +28,8 @@ func findAllPathsInTar(r io.ReadSeeker) (map[string]struct{}, error) {
 			return nil, err
 		}
 		name := strings.TrimSuffix(h.Name, "/")
-		m[name] = struct{}{}
+		name = uncompressedName(unarchivedName(name))
+		m[name]++
 	}
 	return m, nil
 }

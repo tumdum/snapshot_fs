@@ -399,13 +399,12 @@ func TestDirGetFilesWithCollisionsWithCompressedOnes(t *testing.T) {
 		"d.txt.xz":  mustPackXz(content),
 		"d.txt.gz":  mustPackGzip(content),
 		"d.txt.bz2": mustPackBzip(content),
-		"d.txt":     content, // TODO: remove this line
 	}
 	for _, typ := range []string{"tar", "zip"} {
 		d := mustNewDir(colliding, typ)
 		files := d.files()
 		if len(files) != len(colliding) {
-			t.Fatalf("Expected %d files, got %d: %v vs %v", len(colliding), len(files), colliding, files)
+			t.Fatalf("Expected %d files, got %d: %v vs %v", len(colliding), len(files), keys(colliding), fileNames(files))
 		}
 		for _, f := range files {
 			if _, ok := colliding[f.name()]; !ok {
@@ -435,7 +434,7 @@ func TestArchiveNamesAreHidden(t *testing.T) {
 				}
 			}
 			if !found {
-				t.Fatalf("Did not found '%s' in %v", name, dirs)
+				t.Fatalf("Did not found '%s' in %v", name, dirNames(dirs))
 			}
 		}
 	}
@@ -470,6 +469,14 @@ func TestCollidingArchiveNamesAreNotHidden(t *testing.T) {
 			}
 		}
 	}
+}
+
+func fileNames(files []file) []string {
+	r := []string{}
+	for _, f := range files {
+		r = append(r, f.name())
+	}
+	return r
 }
 
 func dirNames(dirs []dir) []string {
