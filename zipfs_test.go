@@ -96,46 +96,9 @@ func makeZipFileBytes(files map[string][]byte) []byte {
 }
 
 var (
-	flatFile = map[string][]byte{
-		"foo.txt": []byte("foo.txt file content"),
-		"bar":     []byte("bar file content"),
-		"empty":   []byte("empty"),
-	}
-	multiLevel = map[string][]byte{
-		"a/b":     []byte("c"),
-		"b":       []byte("d"),
-		"e":       []byte("f"),
-		"g/h/i/j": []byte("k"),
-		"g/h/i/l": []byte("mmmmm"),
-		"g/h/n":   []byte("o"),
-		"g/hp":    []byte("r"),
-	}
 	multiLevelWithZip = map[string][]byte{
 		"a/d.zip": makeZipFileBytes(multiLevel),
 		"e":       []byte("f"),
-	}
-	multiLevelWithDirs = map[string][]byte{
-		"a/":  []byte("dir"),
-		"a/b": []byte("c"),
-		"d/":  []byte("dir"),
-	}
-	withGziped = map[string][]byte{
-		"a":         []byte("b"),
-		"c.gz":      []byte("dddddddddddddddddddddddddddddddddddddddddddddddddddddd"),
-		"f/g/h.gz":  []byte("iiiiii"),
-		"f/g/j.txt": []byte("kkkkk"),
-	}
-	withXziped = map[string][]byte{
-		"a":        []byte("b"),
-		"c.xz":     []byte("dddddddddddddddddddddddddddddddddddddddddddddddddddddd"),
-		"f/g/h.xz": []byte("iiiiii"),
-		"f/g/j.xz": []byte("kkkkk"),
-	}
-	withBziped = map[string][]byte{
-		"a":         []byte("b"),
-		"c.bz2":     []byte("dddddddddddddddddddddddddddddddddddddddddddddddddddddd"),
-		"f/g/h.bz2": []byte("iiiiii"),
-		"f/g/j.bz2": []byte("kkkkk"),
 	}
 )
 

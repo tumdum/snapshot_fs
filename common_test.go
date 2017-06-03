@@ -13,15 +13,69 @@ import (
 	"github.com/ulikunitz/xz"
 )
 
-func MustNewFs(m map[string][]byte, fsType string) pathfs.FileSystem {
-	switch fsType {
-	case "zip":
-		return MustNewZipFs(makeZipFileBytes(m))
-	case "tar":
-		return MustNewTarFs(makeTarFile(m))
-	default:
-		panic("unknown fs type: " + fsType)
+var (
+	flatFile = map[string][]byte{
+		"foo.txt": []byte("foo.txt file content"),
+		"bar":     []byte("bar file content"),
+		"empty":   []byte("empty"),
 	}
+	multiLevel = map[string][]byte{
+		"a/b":     []byte("c"),
+		"b":       []byte("d"),
+		"e":       []byte("f"),
+		"g/h/i/j": []byte("k"),
+		"g/h/i/l": []byte("mmmmm"),
+		"g/h/n":   []byte("o"),
+		"g/hp":    []byte("r"),
+	}
+	multiLevelWithDirs = map[string][]byte{
+		"a/":  []byte("dir"),
+		"a/b": []byte("c"),
+		"d/":  []byte("dir"),
+	}
+	withGziped = map[string][]byte{
+		"a":         []byte("b"),
+		"c.gz":      []byte("dddddddddddddddddddddddddddddddddddddddddddddddddddddd"),
+		"f/g/h.gz":  []byte("iiiiii"),
+		"f/g/j.txt": []byte("kkkkk"),
+	}
+	withXziped = map[string][]byte{
+		"a":        []byte("b"),
+		"c.xz":     []byte("dddddddddddddddddddddddddddddddddddddddddddddddddddddd"),
+		"f/g/h.xz": []byte("iiiiii"),
+		"f/g/j.xz": []byte("kkkkk"),
+	}
+	withBziped = map[string][]byte{
+		"a":         []byte("b"),
+		"c.bz2":     []byte("dddddddddddddddddddddddddddddddddddddddddddddddddddddd"),
+		"f/g/h.bz2": []byte("iiiiii"),
+		"f/g/j.bz2": []byte("kkkkk"),
+	}
+)
+
+func mustNewDir(m map[string][]byte, typ string) dir {
+	switch typ {
+	case "zip":
+		b := makeZipFileBytes(m)
+		d, err := newDirFromArchive(bytes.NewReader(b), int64(len(b)), "archive.zip")
+		if err != nil {
+			panic(err)
+		}
+		return d
+	case "tar":
+		b := makeTarFile(m)
+		d, err := newDirFromArchive(bytes.NewReader(b), int64(len(b)), "archive.tar")
+		if err != nil {
+			panic(err)
+		}
+		return d
+	default:
+		panic("unknown fs type: " + typ)
+	}
+}
+
+func MustNewFs(m map[string][]byte, typ string) pathfs.FileSystem {
+	return &StaticTreeFs{pathfs.NewDefaultFileSystem(), mustNewDir(m, typ)}
 }
 
 func mustPackGzip(content []byte) []byte {
