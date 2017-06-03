@@ -15,6 +15,12 @@ var (
 		"a/d.tar": makeTarFile(multiLevel),
 		"e":       []byte("f"),
 	}
+	multiLevelWithDirsTagged = map[string][]byte{
+		"a":     []byte("dir"),
+		"a/b":   []byte("c"),
+		"d":     []byte("dir"),
+		"d/e/f": []byte("dir"),
+	}
 )
 
 func makeTarFile(m map[string][]byte) []byte {
@@ -136,6 +142,21 @@ func TestTarFsFilesAndDirs(t *testing.T) {
 	for _, f := range d.files() {
 		if _, ok := expected[f.name()]; !ok {
 			t.Fatalf("Unexpected file '%v'", f.name())
+		}
+	}
+}
+
+func TestTarFsFilesAndTaggedDirs(t *testing.T) {
+	fs := mustNewDirFromTar(makeTarFile(multiLevelWithDirsTagged))
+	e := recursiveFindDir(fs, "d/e")
+	dirs := e.dirs()
+	expected := map[string]struct{}{"f": {}}
+	if len(expected) != len(dirs) {
+		t.Fatalf("Expected %d dirs, got %d: %v vs %v", len(expected), len(dirs), expected, dirs)
+	}
+	for _, dir := range dirs {
+		if _, ok := expected[dir.name()]; !ok {
+			t.Fatalf("Unexpected dir '%v'", dir.name())
 		}
 	}
 }
