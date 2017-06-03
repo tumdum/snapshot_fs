@@ -448,7 +448,6 @@ func TestCollidingArchiveNamesAreNotHidden(t *testing.T) {
 		"b.zip": makeZipFileBytes(multiLevel),
 		"c.tar": makeTarFile(multiLevel),
 		"c.zip": makeZipFileBytes(multiLevel),
-		"c/":    []byte("dir"), // TODO: remove this line
 	}
 	for _, typ := range []string{"tar", "zip"} {
 		d := mustNewDir(colliding, typ)
