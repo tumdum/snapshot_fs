@@ -27,7 +27,6 @@ func (fs *StaticTreeFs) fileSize(p string) (uint64, bool) {
 	}
 	s, err := f.size()
 	if err != nil {
-		debugf("file size failed for '%v': %v", p, err)
 		return 0, false
 	}
 	return s, true
@@ -70,7 +69,6 @@ func (fs *StaticTreeFs) Open(p string, flags uint32, context *fuse.Context) (nod
 	}
 	b, err := allBytes(f)
 	if err != nil {
-		debugf("open '%v' failed: %v", p, err)
 		return nil, fuse.EIO
 	}
 	return nodefs.NewDataFile(b), fuse.OK
