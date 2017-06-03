@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"path"
 	"strings"
 )
 
@@ -13,7 +12,6 @@ type dir interface {
 	dirs() []dir
 	addEmptyDir(string) dir
 	addDir(dir) dir
-	setRecursiveDir(string, dir) bool
 	addFile(file) file
 	findDir(string) dir
 	findFile(string) file
@@ -79,22 +77,6 @@ func (d *plainDir) addEmptyDir(name string) dir {
 	newDir := newPlainDir(name)
 	d.d = append(d.d, newDir)
 	return newDir
-}
-
-func (d *plainDir) setRecursiveDir(name string, newDir dir) bool {
-	parent := recursiveFindDir(d, path.Dir(name))
-	debugf("'%v' parent: '%v': %v", name, path.Dir(name), parent)
-	if parent == nil {
-		return false
-	}
-	for _, e := range parent.dirs() {
-		if e.name() == newDir.name() {
-			return false
-		}
-	}
-	parent.addDir(newDir)
-	debugf("'%v' parent: '%v': %v", name, path.Dir(name), parent)
-	return true
 }
 
 func (d *plainDir) addDir(newDir dir) dir {
