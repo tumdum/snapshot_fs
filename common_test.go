@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"compress/gzip"
+	"strings"
 	"testing"
 
 	"github.com/dsnet/compress/bzip2"
@@ -56,6 +57,15 @@ func mustPackBzip(content []byte) []byte {
 	}
 	w.Close()
 	return b.Bytes()
+}
+
+func TestNewDirFromArchiveReturnsErrorOnMalformedInput(t *testing.T) {
+	for _, typ := range []string{"tar", "zip"} {
+		_, err := newDirFromArchive(strings.NewReader("malformed"), 3, "file."+typ)
+		if err == nil {
+			t.Fatalf("malformed archive did not generate error")
+		}
+	}
 }
 
 func TestFsOpenDirOnEmptyFile(t *testing.T) {
