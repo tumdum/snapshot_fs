@@ -396,6 +396,10 @@ func TestDirGetFilesWithCollisionsWithCompressedOnes(t *testing.T) {
 		"b.txt":     content,
 		"c.txt.bz2": mustPackBzip(content),
 		"c.txt":     content,
+		"d.txt.xz":  mustPackXz(content),
+		"d.txt.gz":  mustPackGzip(content),
+		"d.txt.bz2": mustPackBzip(content),
+		"d.txt":     content, // TODO: remove this line
 	}
 	for _, typ := range []string{"tar", "zip"} {
 		d := mustNewDir(colliding, typ)
@@ -409,4 +413,69 @@ func TestDirGetFilesWithCollisionsWithCompressedOnes(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestArchiveNamesAreHidden(t *testing.T) {
+	expected := map[string][]byte{
+		"a.tar": makeTarFile(multiLevel),
+		"b.zip": makeZipFileBytes(multiLevel),
+	}
+	for _, typ := range []string{"tar", "zip"} {
+		d := mustNewDir(expected, typ)
+		dirs := d.dirs()
+		if len(expected) != len(dirs) {
+			t.Fatalf("Expected %d dirs, got %d: %v vs %v", len(expected), len(dirs), expected, dirs)
+		}
+		for n, _ := range expected {
+			name := unarchivedName(n)
+			found := false
+			for _, d := range dirs {
+				if d.name() == name {
+					found = true
+				}
+			}
+			if !found {
+				t.Fatalf("Did not found '%s' in %v", name, dirs)
+			}
+		}
+	}
+}
+
+func TestCollidingArchiveNamesAreNotHidden(t *testing.T) {
+	colliding := map[string][]byte{
+		"a/":    []byte("dir"),
+		"a.tar": makeTarFile(multiLevel),
+		"b/":    []byte("dir"),
+		"b.zip": makeZipFileBytes(multiLevel),
+		"c.tar": makeTarFile(multiLevel),
+		"c.zip": makeZipFileBytes(multiLevel),
+		"c/":    []byte("dir"), // TODO: remove this line
+	}
+	for _, typ := range []string{"tar", "zip"} {
+		d := mustNewDir(colliding, typ)
+		dirs := d.dirs()
+		if len(colliding) != len(dirs) {
+			t.Fatalf("Expected %d dirs, got %d: %v vs %v", len(colliding), len(dirs), keys(colliding), dirNames(dirs))
+		}
+		for c, _ := range colliding {
+			found := false
+			name := strings.TrimSuffix(c, "/")
+			for _, d := range dirs {
+				if d.name() == name {
+					found = true
+				}
+			}
+			if !found {
+				t.Fatalf("Did not found '%s' in %v", name, dirNames(dirs))
+			}
+		}
+	}
+}
+
+func dirNames(dirs []dir) []string {
+	r := []string{}
+	for _, d := range dirs {
+		r = append(r, d.name())
+	}
+	return r
 }

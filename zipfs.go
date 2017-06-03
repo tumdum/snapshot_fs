@@ -7,6 +7,7 @@ import (
 	"io"
 	"io/ioutil"
 	"path"
+	"strings"
 
 	"github.com/hanwen/go-fuse/fuse/pathfs"
 )
@@ -14,7 +15,7 @@ import (
 func findAllPathsInZip(z *zip.Reader) map[string]struct{} {
 	m := map[string]struct{}{}
 	for _, f := range z.File {
-		m[f.Name] = struct{}{}
+		m[strings.TrimSuffix(f.Name, "/")] = struct{}{}
 	}
 	return m
 }
@@ -28,7 +29,7 @@ func newDirFromZip(r io.ReaderAt, size int64) (dir, error) {
 	root := newPlainDir("")
 	for _, f := range zipr.File {
 		ext := path.Ext(f.Name)
-		name := notCollidingName(f.Name, seen)
+		name := notCollidingCompressedName(f.Name, seen)
 		file := newFile(newZipFile(f, name), ext)
 		// TODO: This probably should be done based on metadata from zip file
 		// header.
@@ -51,10 +52,11 @@ func newDirFromZip(r io.ReaderAt, size int64) (dir, error) {
 			if err != nil {
 				return nil, err
 			}
-			dir.setName(path.Base(f.Name))
-			recursiveAddDir(root, path.Dir(f.Name))
-			if !root.setRecursiveDir(f.Name, dir) {
-				return nil, fmt.Errorf("failed to add fs under '%v'", f.Name)
+			name := notCollidingArchiveName(f.Name, seen)
+			dir.setName(path.Base(name))
+			d := recursiveAddDir(root, path.Dir(f.Name))
+			if d.addDir(dir) == nil {
+				return nil, fmt.Errorf("failed to add fs under '%v'", name)
 			}
 			continue
 		}

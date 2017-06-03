@@ -33,8 +33,16 @@ func newDirFromArchive(r dirReader, size int64, path string) (dir, error) {
 	return nil, fmt.Errorf("unsupported archive format: %v", p.Ext(path))
 }
 
-func notCollidingName(path string, seen map[string]struct{}) string {
+func notCollidingCompressedName(path string, seen map[string]struct{}) string {
 	name := uncompressedName(path)
+	if _, ok := seen[name]; ok {
+		return path
+	}
+	return name
+}
+
+func notCollidingArchiveName(path string, seen map[string]struct{}) string {
+	name := unarchivedName(path)
 	if _, ok := seen[name]; ok {
 		return path
 	}

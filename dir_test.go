@@ -24,13 +24,13 @@ func TestDirApi(t *testing.T) {
 	if len(expectedDirs) != len(dirs) {
 		t.Fatalf("Expected '%v', got '%v'", expectedDirs, dirs)
 	}
-	d := recursiveFindDir(root, "a/d.zip")
+	d := recursiveFindDir(root, "a/d")
 	if d == nil {
-		t.Fatalf("Failed to get 'a/d.zip' dir")
+		t.Fatalf("Failed to get 'a/d' dir")
 	}
-	f := recursiveFindFile(root, "a/d.zip/g/h/i/j")
+	f := recursiveFindFile(root, "a/d/g/h/i/j")
 	if f == nil {
-		t.Fatalf("Failed to get 'a/d.zip/g/h/i/j' file")
+		t.Fatalf("Failed to get 'a/d/g/h/i/j' file")
 	}
 	b, err := allBytes(f)
 	if err != nil {

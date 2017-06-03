@@ -224,22 +224,22 @@ func TestTarDirs(t *testing.T) {
 
 func TestTarFsGetAttrOfTar(t *testing.T) {
 	fs := MustNewTarFs(makeTarFile(multiLevelWithTar))
-	attr, status := fs.GetAttr("a/d.tar", &fuse.Context{})
-	verifyStatus("a/d.tar", status, t)
+	attr, status := fs.GetAttr("a/d", &fuse.Context{})
+	verifyStatus("a/d", status, t)
 	if attr.Mode&fuse.S_IFDIR == 0 {
-		t.Fatalf("'a/d.tar' should be dir, but is not")
+		t.Fatalf("'a/d' should be dir, but is not")
 	}
-	_, status = fs.GetAttr("a/d.tar/b", &fuse.Context{})
-	verifyStatus("a/d.tar/b", status, t)
+	_, status = fs.GetAttr("a/d/b", &fuse.Context{})
+	verifyStatus("a/d/b", status, t)
 }
 
 func TestTarFsGetAttrOfZip(t *testing.T) {
 	fs := MustNewTarFs(makeTarFile(multiLevelWithZip))
-	attr, status := fs.GetAttr("a/d.zip", &fuse.Context{})
-	verifyStatus("a/d.zip", status, t)
+	attr, status := fs.GetAttr("a/d", &fuse.Context{})
+	verifyStatus("a/d", status, t)
 	if attr.Mode&fuse.S_IFDIR == 0 {
-		t.Fatalf("'a/d.zip' should be dir, but is not")
+		t.Fatalf("'a/d' should be dir, but is not")
 	}
-	_, status = fs.GetAttr("a/d.zip/b", &fuse.Context{})
-	verifyStatus("a/d.zip/b", status, t)
+	_, status = fs.GetAttr("a/d/b", &fuse.Context{})
+	verifyStatus("a/d/b", status, t)
 }

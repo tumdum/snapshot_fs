@@ -124,3 +124,10 @@ func recursiveAddDir(root dir, path string) dir {
 	}
 	return current
 }
+
+func unarchivedName(path string) string {
+	if isArchive(path) {
+		return removeExt(path)
+	}
+	return path
+}

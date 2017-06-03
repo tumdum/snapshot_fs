@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"io"
 	"path"
+	"strings"
 	"sync"
 
 	"github.com/hanwen/go-fuse/fuse/pathfs"
@@ -26,7 +27,8 @@ func findAllPathsInTar(r io.ReadSeeker) (map[string]struct{}, error) {
 		if err != nil {
 			return nil, err
 		}
-		m[h.Name] = struct{}{}
+		name := strings.TrimSuffix(h.Name, "/")
+		m[name] = struct{}{}
 	}
 	return m, nil
 }
@@ -68,11 +70,12 @@ func newDirFromTar(r io.ReadSeeker) (dir, error) {
 				if err != nil {
 					return nil, err
 				}
-				tarDir.setName(path.Base(h.Name))
+				name := notCollidingArchiveName(h.Name, seen)
+				tarDir.setName(path.Base(name))
 				d.addDir(tarDir)
 			} else {
 				ext := path.Ext(h.Name)
-				name := notCollidingName(h.Name, seen)
+				name := notCollidingCompressedName(h.Name, seen)
 				d.addFile(newFile(&tarFile{h, name, r, m, offset}, ext))
 			}
 		}
