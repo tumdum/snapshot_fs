@@ -10,9 +10,9 @@ To mount zip archieve execute:
 ```
 $ go get github.com/tumdum/snapshot_fs
 $ go install github.com/tumdum/snapshot_fs
-$ snapshot_fs foo gutenberg/gutenberg.tar &                                                 
+$ snapshot_fs foo gutenberg/gutenberg.tar &
 $ tree foo
-foo                                                                                                                                      
+foo
 ├── 111.txt
 ├── 151.txt
 ├── 171.txt
