@@ -71,6 +71,7 @@ func TestMd5(t *testing.T) {
 		}
 		ch := md5.Sum(b)
 		if ch != chsum {
+			t.Fatalf("Expected md5 for '%s': %v, got %v", name, chsum, ch)
 		}
 		rc.Close()
 	}
