@@ -99,9 +99,6 @@ func recursiveAddDir(root dir, path string) dir {
 	comps := strings.Split(path, "/")
 	current := root
 	for _, comp := range comps {
-		if comp == "" {
-			break
-		}
 		current = current.addEmptyDir(comp)
 	}
 	return current

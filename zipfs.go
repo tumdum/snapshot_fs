@@ -37,30 +37,37 @@ func newDirFromZip(r io.ReaderAt, size int64) (dir, error) {
 		// header.
 		parent := recursiveAddDir(root, path.Dir(f.Name))
 		if isArchive(f.Name) {
-			rc, err := f.Open()
-			if err != nil {
+			if err := addArchiveToZip(f, parent, seen); err != nil {
 				return nil, err
-			}
-			defer rc.Close()
-			b, err := ioutil.ReadAll(rc)
-			if err != nil {
-				return nil, err
-			}
-			br := bytes.NewReader(b)
-			dir, err := newDirFromArchive(br, int64(len(b)), f.Name)
-			if err != nil {
-				return nil, err
-			}
-			name := notCollidingArchiveName(f.Name, seen)
-			dir.setName(path.Base(name))
-			if parent.addDir(dir) == nil {
-				return nil, fmt.Errorf("failed to add fs under '%v'", name)
 			}
 		} else if f.Name[len(f.Name)-1] != '/' {
 			parent.addFile(file)
 		}
 	}
 	return root, nil
+}
+
+func addArchiveToZip(f *zip.File, parent dir, seen map[string]int) error {
+	rc, err := f.Open()
+	if err != nil {
+		return err
+	}
+	defer rc.Close()
+	b, err := ioutil.ReadAll(rc)
+	if err != nil {
+		return err
+	}
+	br := bytes.NewReader(b)
+	dir, err := newDirFromArchive(br, int64(len(b)), f.Name)
+	if err != nil {
+		return err
+	}
+	name := notCollidingArchiveName(f.Name, seen)
+	dir.setName(path.Base(name))
+	if parent.addDir(dir) == nil {
+		return fmt.Errorf("failed to add fs under '%v'", name)
+	}
+	return nil
 }
 
 func newStaticTreeFsFromZip(r io.ReaderAt, size int64) (*StaticTreeFs, error) {
