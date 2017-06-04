@@ -42,7 +42,6 @@ func newDirFromTar(r io.ReadSeeker) (dir, error) {
 	m := new(sync.Mutex)
 	root := new(plainDir)
 	tr := tar.NewReader(r)
-	var offset int64
 	for {
 		h, err := tr.Next()
 		if err == io.EOF {
@@ -51,7 +50,7 @@ func newDirFromTar(r io.ReadSeeker) (dir, error) {
 		if err != nil {
 			return nil, err
 		}
-		offset, err = r.Seek(0, io.SeekCurrent)
+		offset, err := r.Seek(0, io.SeekCurrent)
 		if err != nil {
 			return nil, err
 		}
@@ -63,17 +62,9 @@ func newDirFromTar(r io.ReadSeeker) (dir, error) {
 			}
 		} else {
 			if isArchive(h.Name) {
-				b := make([]byte, h.Size)
-				if _, err := tr.Read(b); err != nil && err != io.EOF {
+				if err := addArchiveToTar(h, tr, d, seen); err != nil {
 					return nil, err
 				}
-				tarDir, err := newDirFromArchive(bytes.NewReader(b), int64(len(b)), h.Name)
-				if err != nil {
-					return nil, err
-				}
-				name := notCollidingArchiveName(h.Name, seen)
-				tarDir.setName(path.Base(name))
-				d.addDir(tarDir)
 			} else {
 				ext := path.Ext(h.Name)
 				name := notCollidingCompressedName(h.Name, seen)
@@ -82,6 +73,21 @@ func newDirFromTar(r io.ReadSeeker) (dir, error) {
 		}
 	}
 	return &tarfs{root}, nil
+}
+
+func addArchiveToTar(h *tar.Header, r io.Reader, parent dir, seen map[string]int) error {
+	b := make([]byte, h.Size)
+	if _, err := r.Read(b); err != nil && err != io.EOF {
+		return err
+	}
+	tarDir, err := newDirFromArchive(bytes.NewReader(b), int64(len(b)), h.Name)
+	if err != nil {
+		return err
+	}
+	name := notCollidingArchiveName(h.Name, seen)
+	tarDir.setName(path.Base(name))
+	parent.addDir(tarDir)
+	return nil
 }
 
 func newStaticTreeFsFromTar(r io.ReadSeeker) (*StaticTreeFs, error) {
