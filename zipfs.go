@@ -35,10 +35,7 @@ func newDirFromZip(r io.ReaderAt, size int64) (dir, error) {
 		file := newFile(newZipFile(f, name), ext)
 		// TODO: This probably should be done based on metadata from zip file
 		// header.
-		if f.Name[len(f.Name)-1] == '/' {
-			recursiveAddDir(root, f.Name)
-			continue
-		}
+		parent := recursiveAddDir(root, path.Dir(f.Name))
 		if isArchive(f.Name) {
 			rc, err := f.Open()
 			if err != nil {
@@ -56,13 +53,12 @@ func newDirFromZip(r io.ReaderAt, size int64) (dir, error) {
 			}
 			name := notCollidingArchiveName(f.Name, seen)
 			dir.setName(path.Base(name))
-			d := recursiveAddDir(root, path.Dir(f.Name))
-			if d.addDir(dir) == nil {
+			if parent.addDir(dir) == nil {
 				return nil, fmt.Errorf("failed to add fs under '%v'", name)
 			}
-			continue
+		} else if f.Name[len(f.Name)-1] != '/' {
+			parent.addFile(file)
 		}
-		recursiveAddDir(root, path.Dir(f.Name)).addFile(file)
 	}
 	return root, nil
 }
