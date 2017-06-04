@@ -6,7 +6,7 @@ read only fuse filesystem for mounting archives containing archives containing a
 
 WIP.
 
-To mount zip archieve execute:
+To mount tar (or zip) archive execute:
 ```
 $ go get github.com/tumdum/snapshot_fs
 $ go install github.com/tumdum/snapshot_fs
