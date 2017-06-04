@@ -33,8 +33,6 @@ func newDirFromZip(r io.ReaderAt, size int64) (dir, error) {
 		ext := path.Ext(f.Name)
 		name := notCollidingCompressedName(f.Name, seen)
 		file := newFile(newZipFile(f, name), ext)
-		// TODO: This probably should be done based on metadata from zip file
-		// header.
 		parent := recursiveAddDir(root, path.Dir(f.Name))
 		if isArchive(f.Name) {
 			if err := addArchiveToZip(f, parent, seen); err != nil {
