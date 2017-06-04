@@ -1,7 +1,7 @@
 package main
 
 import (
-	"crypto/md5"
+	"bytes"
 	"io/ioutil"
 	"os"
 	"path"
@@ -23,10 +23,6 @@ func mustReadFile(path string) []byte {
 		panic(err)
 	}
 	return b
-}
-
-func mustHashFile(path string) [md5.Size]byte {
-	return md5.Sum(mustReadFile(path))
 }
 
 func findFile(root dir, name string) file {
@@ -51,12 +47,12 @@ func TestMd5(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
-	checksums := map[string][md5.Size]byte{}
+	contents := map[string][]byte{}
 	for _, p := range expected {
 		name := path.Base(p)
-		checksums[name] = mustHashFile(p)
+		contents[name] = mustReadFile(p)
 	}
-	for name, chsum := range checksums {
+	for name, content := range contents {
 		f := findFile(dir, name)
 		if f == nil {
 			t.Fatalf("Did not found '%v'", name)
@@ -69,9 +65,8 @@ func TestMd5(t *testing.T) {
 		if err != nil {
 			t.Fatalf("failed to checksum file '%v': %v", f.name(), err)
 		}
-		ch := md5.Sum(b)
-		if ch != chsum {
-			t.Fatalf("Expected md5 for '%s': %v, got %v", name, chsum, ch)
+		if bytes.Compare(content, b) != 0 {
+			t.Fatalf("sss")
 		}
 		rc.Close()
 	}
