@@ -5,6 +5,8 @@ import (
 	"io"
 	p "path"
 	"strings"
+
+	"github.com/hanwen/go-fuse/fuse/pathfs"
 )
 
 type dirReader interface {
@@ -31,6 +33,15 @@ func newDirFromArchive(r dirReader, size int64, path string) (dir, error) {
 		return dir, nil
 	}
 	return nil, fmt.Errorf("unsupported archive format: %v", p.Ext(path))
+}
+
+func newFsFromArchive(r dirReader, size int64, path string) (pathfs.FileSystem, error) {
+	root, err := newDirFromArchive(r, size, path)
+	if err != nil {
+		return nil, err
+	}
+	fs := &StaticTreeFs{pathfs.NewDefaultFileSystem(), root}
+	return pathfs.NewLockingFileSystem(fs), nil
 }
 
 func notCollidingCompressedName(path string, seen map[string]int) string {

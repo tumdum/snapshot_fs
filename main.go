@@ -6,7 +6,6 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"strings"
 
 	"github.com/hanwen/go-fuse/fuse/nodefs"
 	"github.com/hanwen/go-fuse/fuse/pathfs"
@@ -30,9 +29,16 @@ func failOnErr(format string, err error) {
 }
 
 func main() {
+	flag.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Usage:\n  snapshot_fs [OPTIONS] MOUNTPOINT ARCHIVE\n\n")
+		fmt.Fprintln(os.Stderr, "Options:\n")
+		flag.PrintDefaults()
+		fmt.Fprintln(os.Stderr, "\nPlease report any bugs on https://github.com/tumdum/snapshot_fs")
+	}
 	flag.Parse()
 	if len(flag.Args()) < 2 {
-		log.Fatal("Usage:\n  snapshot_fs MOUNTPOINT ARCHIVE")
+		flag.Usage()
+		os.Exit(1)
 	}
 
 	f, err := os.Open(flag.Arg(1))
@@ -41,16 +47,8 @@ func main() {
 	stat, err := f.Stat()
 	failOnErr("Could not stat file: %v", err)
 
-	var fs pathfs.FileSystem
-	if strings.HasSuffix(flag.Arg(1), ".zip") {
-		tmp, err := NewZipFs(f, stat.Size())
-		failOnErr("Could not read zip file: %v", err)
-		fs = tmp
-	} else if strings.HasSuffix(flag.Arg(1), ".tar") {
-		tmp, err := newTarFs(f)
-		failOnErr("Could not read tar file: %v", err)
-		fs = tmp
-	}
+	fs, err := newFsFromArchive(f, stat.Size(), flag.Arg(1))
+	failOnErr("Could not parse archive: %v", err)
 
 	nfs := pathfs.NewPathNodeFs(fs, nil)
 	server, _, err := nodefs.MountRoot(flag.Arg(0), nfs.Root(), nil)
