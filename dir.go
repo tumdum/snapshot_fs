@@ -75,16 +75,20 @@ func (d *plainDir) addFile(newFile file) file {
 }
 
 func (d *plainDir) addEmptyDir(name string) dir {
-	existing := d.findDir(name)
-	if existing != nil {
-		return existing
-	}
-	newDir := newPlainDir(name)
-	d.d = append(d.d, newDir)
-	return newDir
+	return d.addDir(newPlainDir(name))
 }
 
 func (d *plainDir) addDir(newDir dir) dir {
+	existing := d.findDir(newDir.name())
+	if existing != nil {
+		return existing
+	}
+	for i := range d.f {
+		if d.f[i].name() == newDir.name() {
+			d.f = append(d.f[:i], d.f[i+1:]...)
+			break
+		}
+	}
 	d.d = append(d.d, newDir)
 	return newDir
 }
