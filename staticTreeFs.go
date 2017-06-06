@@ -24,18 +24,6 @@ func (fs *StaticTreeFs) file(p string) file {
 	return recursiveFindFile(fs.dir, p)
 }
 
-func (fs *StaticTreeFs) fileSize(p string) (uint64, bool) {
-	f := fs.file(p)
-	if f == nil {
-		return 0, false
-	}
-	s, err := f.size()
-	if err != nil {
-		return 0, false
-	}
-	return s, true
-}
-
 // OpenDir returns list of files and directories directly under path.
 func (fs *StaticTreeFs) OpenDir(path string, context *fuse.Context) ([]fuse.DirEntry, fuse.Status) {
 	debugf("OpenDir: '%s'", path)
