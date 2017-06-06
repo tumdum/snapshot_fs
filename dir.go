@@ -65,6 +65,11 @@ func (d *plainDir) addFile(newFile file) file {
 			return f
 		}
 	}
+	for _, d := range d.d {
+		if d.name() == newFile.name() {
+			return nil
+		}
+	}
 	d.f = append(d.f, newFile)
 	return newFile
 }

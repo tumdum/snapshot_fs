@@ -51,6 +51,14 @@ var (
 		"f/g/h.bz2": []byte("iiiiii"),
 		"f/g/j.bz2": []byte("kkkkk"),
 	}
+	dirandfile = map[string][]byte{
+		"a/": []byte("dir"),
+		"a":  []byte("file"),
+	}
+	dirandfilexz = map[string][]byte{
+		"a/":   []byte("dir"),
+		"a.xz": []byte("adsadasda"),
+	}
 )
 
 func mustNewDir(m map[string][]byte, typ string) dir {
@@ -410,6 +418,30 @@ func TestDirGetFilesWithCollisionsWithCompressedOnes(t *testing.T) {
 			if _, ok := colliding[f.name()]; !ok {
 				t.Fatalf("Unexpected file %v", f)
 			}
+		}
+	}
+}
+
+func TestDirAndFileOfSameName(t *testing.T) {
+	for _, typ := range []string{"tar", "zip"} {
+		root := mustNewDir(dirandfile, typ)
+		if len(root.dirs()) != 1 {
+			t.Fatalf("Expected one dir, got: %v", root.dirs())
+		}
+		if len(root.files()) != 0 {
+			t.Fatalf("Expected zero files, got %v", root.files())
+		}
+	}
+}
+
+func TestDirAndFileOfSimilarName(t *testing.T) {
+	for _, typ := range []string{"tar", "zip"} {
+		root := mustNewDir(dirandfilexz, typ)
+		if len(root.dirs()) != 1 {
+			t.Fatalf("Expected one dir, got: %v", root.dirs())
+		}
+		if len(root.files()) != 1 {
+			t.Fatalf("Expected one file, got %v", root.files())
 		}
 	}
 }
