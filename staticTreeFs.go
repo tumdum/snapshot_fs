@@ -20,8 +20,12 @@ func (fs *StaticTreeFs) isDir(path string) bool {
 	return recursiveFindDir(fs.dir, path) != nil
 }
 
+func (fs *StaticTreeFs) file(p string) file {
+	return recursiveFindFile(fs.dir, p)
+}
+
 func (fs *StaticTreeFs) fileSize(p string) (uint64, bool) {
-	f := recursiveFindFile(fs.dir, p)
+	f := fs.file(p)
 	if f == nil {
 		return 0, false
 	}
@@ -51,12 +55,18 @@ func (fs *StaticTreeFs) OpenDir(path string, context *fuse.Context) ([]fuse.DirE
 
 // GetAttr returns attributes of path.
 func (fs *StaticTreeFs) GetAttr(path string, context *fuse.Context) (*fuse.Attr, fuse.Status) {
-	size, isFile := fs.fileSize(path)
-	if !isFile && !fs.isDir(path) {
+	f := fs.file(path)
+	attr := &fuse.Attr{Mode: mode(f != nil)}
+	if f == nil && !fs.isDir(path) {
 		debugf("GetAttr: '%s' -> does not exist", path)
 		return nil, fuse.ENOENT
+	} else if f != nil {
+		size, _ := f.size()
+		attr.Size = size
+		// Copy paste from https://github.com/hanwen/go-fuse/blob/master/zipfs/zipfs.go#L24
+		attr.Mtime = uint64(f.modTime().Unix())
+		attr.Atime, attr.Ctime = attr.Mtime, attr.Mtime
 	}
-	attr := &fuse.Attr{Mode: mode(isFile), Size: size}
 	debugf("GetAttr: '%s' -> file:%v dir:%v (%v)", path, attr.IsRegular(), attr.IsDir(), attr)
 	return attr, fuse.OK
 }

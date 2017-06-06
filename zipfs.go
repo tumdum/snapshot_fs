@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"path"
 	"strings"
+	"time"
 
 	"github.com/hanwen/go-fuse/fuse/pathfs"
 )
@@ -96,6 +97,10 @@ func (f *zipFile) name() string {
 
 func (f *zipFile) size() (uint64, error) {
 	return f.UncompressedSize64, nil
+}
+
+func (f *zipFile) modTime() time.Time {
+	return f.ModTime()
 }
 
 func (f *zipFile) readCloser() (io.ReadCloser, error) {

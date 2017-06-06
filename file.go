@@ -8,6 +8,7 @@ import (
 	"math"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/ulikunitz/xz"
 )
@@ -15,6 +16,7 @@ import (
 type file interface {
 	name() string
 	size() (uint64, error)
+	modTime() time.Time
 	readCloser() (io.ReadCloser, error)
 }
 

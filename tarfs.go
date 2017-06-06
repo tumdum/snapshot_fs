@@ -7,6 +7,7 @@ import (
 	"path"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/hanwen/go-fuse/fuse/pathfs"
 )
@@ -120,6 +121,10 @@ func (f *tarFile) name() string {
 
 func (f *tarFile) size() (uint64, error) {
 	return uint64(f.h.Size), nil
+}
+
+func (f *tarFile) modTime() time.Time {
+	return f.h.ModTime
 }
 
 func (f *tarFile) readCloser() (io.ReadCloser, error) {

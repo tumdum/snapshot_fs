@@ -66,7 +66,7 @@ func TestMd5(t *testing.T) {
 			t.Fatalf("failed to checksum file '%v': %v", f.name(), err)
 		}
 		if bytes.Compare(content, b) != 0 {
-			t.Fatalf("sss")
+			t.Fatalf("Unexpected content")
 		}
 		rc.Close()
 	}
