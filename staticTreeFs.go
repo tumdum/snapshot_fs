@@ -110,7 +110,7 @@ func recursiveFindFile(root dir, p string) file {
 
 func mode(isFile bool) uint32 {
 	if isFile {
-		return uint32(0755) | fuse.S_IFREG
+		return uint32(0555) | fuse.S_IFREG
 	}
 	return uint32(0755) | fuse.S_IFDIR
 }
