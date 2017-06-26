@@ -28,9 +28,13 @@ func failOnErr(format string, err error) {
 	}
 }
 
+func createDirIfNotPresent(dir string) error {
+	return os.Mkdir(dir, 0777)
+}
+
 func main() {
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Usage:\n  snapshot_fs [OPTIONS] MOUNTPOINT ARCHIVE\n\n")
+		fmt.Fprintf(os.Stderr, "Usage:\n  snapshot_fs [OPTIONS] ARCHIVE MOUNTPOINT\n\n")
 		fmt.Fprintln(os.Stderr, "Options:\n")
 		flag.PrintDefaults()
 		fmt.Fprintln(os.Stderr, "\nPlease report any bugs on https://github.com/tumdum/snapshot_fs")
@@ -41,17 +45,23 @@ func main() {
 		os.Exit(1)
 	}
 
-	f, err := os.Open(flag.Arg(1))
-	failOnErr("Could not opne file: %v", err)
+	f, err := os.Open(flag.Arg(0))
+	failOnErr("Could not open file: %v", err)
 
 	stat, err := f.Stat()
 	failOnErr("Could not stat file: %v", err)
 
-	fs, err := newFsFromArchive(f, stat.Size(), flag.Arg(1))
+	fs, err := newFsFromArchive(f, stat.Size(), flag.Arg(0))
 	failOnErr("Could not parse archive: %v", err)
 
+	if err := createDirIfNotPresent(flag.Arg(1)); err != nil && !os.IsExist(err) {
+		failOnErr("Could not make "+flag.Arg(1)+": %v", err)
+	} else if err == nil {
+		defer os.Remove(flag.Arg(1))
+	}
+
 	nfs := pathfs.NewPathNodeFs(fs, nil)
-	server, _, err := nodefs.MountRoot(flag.Arg(0), nfs.Root(), nil)
+	server, _, err := nodefs.MountRoot(flag.Arg(1), nfs.Root(), nil)
 	failOnErr("Could not mount: %v", err)
 
 	c := make(chan os.Signal, 1)
