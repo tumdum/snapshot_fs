@@ -99,6 +99,7 @@ func (f *compressedFile) readCloser() (io.ReadCloser, error) {
 	}
 	d, err := f.decompressor(r)
 	if err != nil {
+		r.Close()
 		return nil, err
 	}
 	return &readcloser{d, r.Close}, nil

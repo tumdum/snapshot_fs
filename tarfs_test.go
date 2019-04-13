@@ -39,7 +39,7 @@ func makeTarFile(m map[string][]byte) []byte {
 		if isDir {
 			header.Typeflag = tar.TypeDir
 			header.Size = 0
-		} else {
+		} else if !strings.Contains(path, ".raw.") {
 			if strings.HasSuffix(path, ".gz") {
 				buf = mustPackGzip(content)
 			} else if strings.HasSuffix(path, ".xz") {

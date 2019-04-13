@@ -59,6 +59,10 @@ var (
 		"a/":   nil,
 		"a.xz": []byte("adsadasda"),
 	}
+	brokenCompressed = map[string][]byte{
+		"a.raw.gz": nil,
+		"b.raw.gz": nil,
+	}
 )
 
 func mustNewDir(m map[string][]byte, typ string) dir {
@@ -222,6 +226,12 @@ func TestFsOpenDirOnFlatFile(t *testing.T) {
 	}
 }
 
+func TestFsOpenWithMultipleBrokenCompressedArchives(t *testing.T) {
+	fs := MustNewFs(brokenCompressed, "tar")
+	for name := range brokenCompressed {
+		fs.GetAttr(uncompressedName(name), &fuse.Context{})
+	}
+}
 func TestFsOpenDirOnFileInFlatFile(t *testing.T) {
 	for _, typ := range []string{"tar", "zip"} {
 		fs := MustNewFs(flatFile, typ)
