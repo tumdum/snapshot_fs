@@ -35,7 +35,7 @@ func createDirIfNotPresent(dir string) error {
 func main() {
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage:\n  snapshot_fs [OPTIONS] ARCHIVE MOUNTPOINT\n\n")
-		fmt.Fprintln(os.Stderr, "Options:\n")
+		fmt.Fprintf(os.Stderr, "Options:\n\n")
 		flag.PrintDefaults()
 		fmt.Fprintln(os.Stderr, "\nPlease report any bugs on https://github.com/tumdum/snapshot_fs")
 	}
