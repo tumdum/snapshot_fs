@@ -29,9 +29,9 @@ var (
 		"g/hp":    []byte("r"),
 	}
 	multiLevelWithDirs = map[string][]byte{
-		"a/":  []byte("dir"),
+		"a/":  nil,
 		"a/b": []byte("c"),
-		"d/":  []byte("dir"),
+		"d/":  nil,
 	}
 	withGziped = map[string][]byte{
 		"a":         []byte("b"),
@@ -52,11 +52,11 @@ var (
 		"f/g/j.bz2": []byte("kkkkk"),
 	}
 	dirandfile = map[string][]byte{
-		"a/": []byte("dir"),
+		"a/": nil,
 		"a":  []byte("file"),
 	}
 	dirandfilexz = map[string][]byte{
-		"a/":   []byte("dir"),
+		"a/":   nil,
 		"a.xz": []byte("adsadasda"),
 	}
 )
@@ -474,9 +474,9 @@ func TestArchiveNamesAreHidden(t *testing.T) {
 
 func TestCollidingArchiveNamesAreNotHidden(t *testing.T) {
 	colliding := map[string][]byte{
-		"a/":    []byte("dir"),
+		"a/":    nil,
 		"a.tar": makeTarFile(multiLevel),
-		"b/":    []byte("dir"),
+		"b/":    nil,
 		"b.zip": makeZipFileBytes(multiLevel),
 		"c.tar": makeTarFile(multiLevel),
 		"c.zip": makeZipFileBytes(multiLevel),
