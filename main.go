@@ -28,10 +28,6 @@ func failOnErr(format string, err error) {
 	}
 }
 
-func createDirIfNotPresent(dir string) error {
-	return os.Mkdir(dir, 0777)
-}
-
 func main() {
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage:\n  snapshot_fs [OPTIONS] ARCHIVE MOUNTPOINT\n\n")
@@ -54,7 +50,7 @@ func main() {
 	fs, err := newFsFromArchive(f, stat.Size(), flag.Arg(0))
 	failOnErr("Could not parse archive: %v", err)
 
-	if err := createDirIfNotPresent(flag.Arg(1)); err != nil && !os.IsExist(err) {
+	if err := os.Mkdir(flag.Arg(1), 0777); err != nil && !os.IsExist(err) {
 		failOnErr("Could not make "+flag.Arg(1)+": %v", err)
 	} else if err == nil {
 		defer os.Remove(flag.Arg(1))
@@ -75,6 +71,5 @@ func main() {
 	}()
 
 	server.SetDebug(*vverbose)
-	log.Println("Serving")
 	server.Serve()
 }
