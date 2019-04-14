@@ -88,6 +88,12 @@ func MustNewTarFs(b []byte) pathfs.FileSystem {
 	return fs
 }
 
+func TestNewTarFsPropagatesError(t *testing.T) {
+	if _, err := newTarFs(bytes.NewReader([]byte(" "))); err == nil {
+		t.Fatalf("newTarFs didn't fail for incorrect tar contents")
+	}
+}
+
 func TestTarFsOnEmpty(t *testing.T) {
 	fs := mustNewDirFromTar(makeTarFile(nil))
 	if dirs := fs.dirs(); len(dirs) != 0 {
