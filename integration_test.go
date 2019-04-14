@@ -40,7 +40,7 @@ func findFile(root dir, name string) file {
 	return nil
 }
 
-func TestMd5(t *testing.T) {
+func TestGutenbergContents(t *testing.T) {
 	b := mustReadFile(INPUT)
 	dir := mustNewDirFromTar(b)
 	expected, err := filepath.Glob("gutenberg/expected/*.txt")
@@ -59,14 +59,14 @@ func TestMd5(t *testing.T) {
 		}
 		rc, err := f.readCloser()
 		if err != nil {
-			t.Fatalf("failed to read file '%v': %v", f.name(), err)
+			t.Fatalf("failed to open file '%v': %v", f.name(), err)
 		}
 		b, err := ioutil.ReadAll(rc)
 		if err != nil {
-			t.Fatalf("failed to checksum file '%v': %v", f.name(), err)
+			t.Fatalf("failed to read file '%v': %v", f.name(), err)
 		}
 		if bytes.Compare(content, b) != 0 {
-			t.Fatalf("Unexpected content")
+			t.Fatalf("Unexpected content for %v", name)
 		}
 		rc.Close()
 	}
